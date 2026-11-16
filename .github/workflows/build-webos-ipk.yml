@@ -12,6 +12,7 @@ on:
       - 'icon.png'
       - 'largeIcon.png'
       - 'service/**'
+      - 'test/**'
       - '.github/workflows/build-webos-ipk.yml'
   pull_request:
     branches:
@@ -24,6 +25,7 @@ on:
       - 'icon.png'
       - 'largeIcon.png'
       - 'service/**'
+      - 'test/**'
       - '.github/workflows/build-webos-ipk.yml'
   workflow_dispatch:
 
@@ -50,6 +52,7 @@ jobs:
         run: |
           node --check app.js
           node --check service/com.codex.jtvwebos.service/jio_service.js
+          node --test
 
       - name: Install webOS CLI
         run: npm install --global @webos-tools/cli

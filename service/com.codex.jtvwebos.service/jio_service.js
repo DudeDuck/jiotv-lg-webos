@@ -681,18 +681,6 @@ function selectMasterVariant(manifest, baseUrl, channelId, level) {
   return output.join("\n");
 }
 
-function getQualityLevels(channelId) {
-  return ensureStream(channelId).then(function(data) {
-    if (!data.streamUrl) return [];
-    return requestText(urlWithHdnea(data.streamUrl, data.hdnea), "GET", streamHeaders(channelId, data.hdnea));
-  }).then(function(response) {
-    if (response.status < 200 || response.status >= 300) return [];
-    return extractVariants(response.text, streamCache[String(channelId)].streamUrl).map(function(item) {
-      return { height: item.height, bandwidth: item.bandwidth };
-    });
-  });
-}
-
 function resolvePlayback(channelId, options) {
   var key = String(channelId);
   if (!/^\d{1,7}$/.test(key)) return Promise.reject(new Error("Invalid channel id"));
@@ -1046,14 +1034,6 @@ register("auth/verifyOtp", function(payload) {
 });
 register("library/getChannels", function() { return getChannels().then(function(channels) { return { channels: channels }; }); });
 register("epg/get", function(payload) { return getEpg(payload.channelId, payload.offset); });
-register("auth/refresh", function(payload) {
-  authData = payload.auth || authData;
-  return refreshAuth().then(function(auth) { return { auth: auth }; });
-});
-register("proxy/qualities", function(payload) {
-  authData = payload.auth || authData;
-  return getQualityLevels(payload.channelId).then(function(levels) { return { levels: levels, auth: authData }; });
-});
 register("proxy/resolve", function(payload) {
   authData = payload.auth || authData;
   return resolvePlayback(payload.channelId, { forceHls: !!payload.forceHls });
@@ -1078,12 +1058,6 @@ service.register("proxy/start", function(message) {
 }, function(message) {
   delete proxySubscriptions[message.uniqueToken];
   if (!Object.keys(proxySubscriptions).length) closeProxy();
-});
-
-register("proxy/stop", function() {
-  proxySubscriptions = {};
-  closeProxy();
-  return { stopped: true };
 });
 
 register("diagnostic/ping", function() { return { version: require("./package.json").version, nodeService: true }; });

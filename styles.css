@@ -26,7 +26,7 @@ button { color: inherit; }
 .connection.connected::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #55c47b; box-shadow: 0 0 10px #55c47b70; }
 .search-wrap { width: 420px; height: 60px; display: flex; align-items: center; gap: 11px; padding: 0 15px; border: 1px solid #ffffff16; border-radius: 12px; background: #ffffff08; color: #9ba5b0; }
 .search-wrap:focus-within { border-color: #f0643c99; background: #ffffff0d; }
-.search-wrap span { font-size: 32px; line-height: 1; }
+.search-wrap svg { flex: none; }
 .search-wrap input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 22px; }
 .search-wrap input::placeholder { color: #87919b; }
 .settings-button { height: 60px; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 0 22px; border: 1px solid #ffffff17; border-radius: 12px; background: #ffffff08; color: #e5e8eb; font-size: 22px; font-weight: 700; cursor: pointer; }

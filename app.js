@@ -176,7 +176,7 @@
     } else {
       const showingEmptyFavorites = state.group === 'favorites' && state.language === 'all' && !elements.search.value.trim();
       $('empty').querySelector('h2').textContent = showingEmptyFavorites ? 'No saved channels yet' : 'No channels found';
-      $('empty').querySelector('p').textContent = showingEmptyFavorites ? 'Save a channel from its card to find it here.' : 'Try a different search, language, or category.';
+      $('empty').querySelector('p').textContent = showingEmptyFavorites ? 'Press the Red button on a channel to save it.' : 'Try a different search, language, or category.';
       $('settings-cta').hidden = true;
     }
     syncRail();
@@ -350,33 +350,6 @@
   function playbackURL(channel, level) {
     return `${state.proxyBaseUrl}/live/${encodeURIComponent(channel.id)}.m3u8?level=${encodeURIComponent(String(level))}`;
   }
-  function parseQualityLevels(manifest) {
-    const levels = new Map();
-    const lines = manifest.split(/\r?\n/);
-    for (const line of lines) {
-      if (!line.trim().startsWith('#EXT-X-STREAM-INF')) continue;
-      const resolution = /RESOLUTION=\d+x(\d+)/i.exec(line);
-      const averageBandwidth = /AVERAGE-BANDWIDTH=(\d+)/i.exec(line);
-      const bandwidth = /(?:^|[:,])BANDWIDTH=(\d+)/i.exec(line);
-      const height = resolution ? Number(resolution[1]) : 0;
-      const rate = Number((averageBandwidth && averageBandwidth[1]) || (bandwidth && bandwidth[1]) || 0);
-      const key = height ? `h${height}` : `b${rate}`;
-      const previous = levels.get(key);
-      if (!previous || rate > previous.bandwidth) levels.set(key, { height, bandwidth: rate });
-    }
-    return [...levels.values()].sort((a, b) => b.height - a.height || b.bandwidth - a.bandwidth);
-  }
-  async function discoverQualityLevels(channel, playbackToken) {
-    try {
-      const result = await serviceCall('proxy/qualities', { channelId: channel.id, auth: state.auth });
-      if (result.auth) saveRefreshedAuth(result.auth);
-      if (playbackToken !== state.playbackToken || !state.active || state.active.id !== channel.id) return;
-      state.qualityLevels = result.levels || [];
-      elements.qualityStatus.textContent = qualityLabel(0);
-    } catch (_) {
-      if (playbackToken === state.playbackToken) { state.qualityLevels = []; elements.qualityStatus.textContent = 'Best available'; }
-    }
-  }
   function qualityLabel(index) {
     const level = state.qualityLevels && state.qualityLevels[index];
     return level && level.height ? `${level.height}p` : (index ? 'Lower quality' : 'Best available');
@@ -507,7 +480,7 @@
     elements.playerError.hidden = true; elements.player.pause(); elements.player.removeAttribute('src'); elements.player.load();
     elements.playerPrompt.hidden = false; elements.controls.hidden = false; revealPlayerControls(false);
     elements.playerView.setAttribute('aria-hidden', 'false'); elements.nowTitle.textContent = channel.title;
-    elements.qualityStatus.textContent = 'Connecting to Jio…'; state.active = channel; render();
+    elements.qualityStatus.textContent = 'Connecting to Jio…'; state.active = channel;
     document.body.classList.add('playing'); $('play-toggle').focus();
     try {
       await startProxy();
@@ -630,7 +603,7 @@
   }
   function toEpochMilliseconds(value) {
     if (value === undefined || value === null || value === "") return null;
-    if (typeof value === "number" || /^-?\\d+(?:\\.\\d+)?$/.test(String(value).trim())) {
+    if (typeof value === "number" || /^-?\d+(?:\.\d+)?$/.test(String(value).trim())) {
       const number = Number(value);
       if (!Number.isFinite(number)) return null;
       return Math.abs(number) < 1000000000000 ? number * 1000 : number;
@@ -929,7 +902,7 @@
   document.querySelectorAll('.rail-item').forEach((button) => button.addEventListener('click', () => {
     const list = button.dataset.group;
     if (list === 'favorites') state.group = 'favorites';
-    else { state.group = 'all'; state.language = list; elements.search.value = ''; }
+    else { state.group = 'all'; state.language = list; localStorage.setItem(LANGUAGE_KEY, list); elements.search.value = ''; }
     state.selected = -1; render(); button.focus();
   }));
   elements.search.addEventListener('input', render);
@@ -975,6 +948,10 @@
       if (event.key === 'Escape' || event.keyCode === 461) { event.preventDefault(); elements.dialog.close(); }
       else if (/^Arrow(Up|Down)$/.test(direction) && moveFocus(direction)) event.preventDefault();
       return;
+    }
+    // Red remote key saves or removes the focused channel; the remote has no right-click.
+    if (event.keyCode === 403 && event.target.classList.contains('channel-card')) {
+      event.preventDefault(); toggleFavorite(state.channels.find((channel) => channel.id === event.target.dataset.channelId)); return;
     }
     if (state.active && isYellowButton(event)) {
       event.preventDefault();
