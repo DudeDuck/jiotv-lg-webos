@@ -438,7 +438,16 @@
       if (playbackToken !== state.playbackToken || state.playbackMode !== 'dash') return;
       const detail = event.detail || {};
       const category = Number(detail.category);
-      const code = detail.code ? ` (error ${detail.code})` : '';
+      const httpStatus = (function find(items, depth) {
+        if (!Array.isArray(items) || depth > 3) return 0;
+        for (const item of items) {
+          if (item && item.code === 1001 && Array.isArray(item.data) && Number(item.data[1])) return Number(item.data[1]);
+          const nested = item && Array.isArray(item.data) ? find(item.data, depth + 1) : 0;
+          if (nested) return nested;
+        }
+        return 0;
+      })(detail.data, 0);
+      const code = detail.code ? ` (error ${detail.code}${httpStatus ? `, licence server HTTP ${httpStatus}` : ''})` : '';
       const diagnosis = ({
         1: 'a network or CDN request failed',
         3: 'the TV could not decode the media format',

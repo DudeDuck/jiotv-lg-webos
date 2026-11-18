@@ -149,6 +149,13 @@ function getJioErrorDetail(response) {
   return detail;
 }
 
+function bodySnippet(text) {
+  var out = String(text || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  out = out.replace(/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "[token]");
+  out = out.replace(/(hdnea|ssotoken|accesstoken)=[^&\s"']+/ig, "$1=[redacted]");
+  return out.length > 90 ? out.slice(0, 87) + "..." : out;
+}
+
 function getJioRequestId(response) {
   var headers = response && response.headers || {};
   var names = ["x-request-id", "x-correlation-id", "x-amzn-requestid", "x-trace-id"];
@@ -728,7 +735,7 @@ function resolvePlayback(channelId, options) {
               auth: authData
             };
           }
-          throw new Error("Jio's same-channel HLS manifest returned HTTP " + response.status + " and was not a usable HLS playlist." + (dashFailure ? " " + dashFailure : ""));
+          throw new Error("Jio's same-channel HLS manifest returned HTTP " + response.status + " and was not a usable HLS playlist (" + (response.headers && response.headers["content-type"] || "no content type") + "; " + (body ? "starts with: " + bodySnippet(body) : "empty body") + ")." + (dashFailure ? " " + dashFailure : ""));
         }, function(error) {
           throw new Error("Jio's same-channel HLS manifest request failed: " + (error.message || "network error") + "." + (dashFailure ? " " + dashFailure : ""));
         });
