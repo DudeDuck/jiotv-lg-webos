@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   build-ipk:
-    name: Package JTV webOS app
+    name: Package JioTV webOS app
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -78,7 +78,7 @@ jobs:
       - name: Upload installable IPK
         uses: actions/upload-artifact@v4
         with:
-          name: jtv-webos-yellow-epg-ipk
+          name: jiotvwebos-ipk
           path: dist/*.ipk
           if-no-files-found: error
           retention-days: 14

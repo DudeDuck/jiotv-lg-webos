@@ -1,12 +1,12 @@
-# JTV for LG webOS — JioTV Live TV App for LG Smart TVs
+# JioTV for LG webOS — Live TV App for LG Smart TVs
 
-**JTV for LG webOS** is an unofficial, community-built JioTV app for compatible LG webOS Smart TVs. It provides TV-friendly remote navigation, Jio account sign-in, live channel playback, and language filters with Telugu first. The project includes instructions for installing a webOS `.ipk` package through Developer Mode.
+**JioTV for LG webOS** is an unofficial, community-built JioTV app for compatible LG webOS Smart TVs. It provides TV-friendly remote navigation, Jio account sign-in, live channel playback, and language filters with Telugu first. The project includes instructions for installing a webOS `.ipk` package through Developer Mode.
 
 > **Compatibility and access:** Playback depends on your Jio account and subscription, Jio's current service responses, and the TV's media/DRM support. This project is not affiliated with or endorsed by Jio or LG, and it does not bypass subscription or DRM checks.
 
 ## Project overview
 
-This repository contains the JTV webOS application and its on-TV JavaScript service. It is intended for people exploring JioTV on LG webOS televisions and developers testing webOS apps.
+This repository contains the JioTV webOS application and its on-TV JavaScript service. It is intended for people exploring JioTV on LG webOS televisions and developers testing webOS apps.
 
 ## Privacy
 
@@ -68,8 +68,8 @@ This is an unofficial sideloading workflow for personal testing. Use the generat
 
 1. Download the installer for your operating system from [webOS Dev Manager releases](https://github.com/webosbrew/dev-manager-desktop/releases/latest).
 2. Launch Dev Manager and add/connect to the TV using the IP address shown in Developer Mode. Follow the pairing flow and enter the current passphrase if prompted.
-3. Choose the app/package installation option and select the JTV webOS `.ipk` file.
-4. Wait for the install to finish, then open **JTV** from the TV launcher. If it does not appear immediately, return to the home screen and check again.
+3. Choose the app/package installation option and select the JioTV webOS `.ipk` file.
+4. Wait for the install to finish, then open **JioTV** from the TV launcher. If it does not appear immediately, return to the home screen and check again.
 
 **Example screenshots from the Dev Manager project:**
 
@@ -102,7 +102,7 @@ This is an unofficial sideloading workflow for personal testing. Use the generat
 4. Install the package (replace the sample path with the actual IPK path):
 
    ```sh
-   ares-install --device tv ./dist/JTV-webOS.ipk
+   ares-install --device tv ./dist/jiotvwebos_<version>_all.ipk
    ```
 
 5. Launch the app:

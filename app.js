@@ -2,10 +2,10 @@
   'use strict';
 
   const SERVICE_URI = 'luna://jiotvwebos.service/';
-  const AUTH_KEY = 'jtv-webos.jio-auth.v1';
-  const CHANNELS_KEY = 'jtv-webos.channels.v1';
-  const FAVORITES_KEY = 'jtv-webos.favorites.v1';
-  const LANGUAGE_KEY = 'jtv-webos.language.v2';
+  const AUTH_KEY = 'jiotvwebos.jio-auth.v1';
+  const CHANNELS_KEY = 'jiotvwebos.channels.v1';
+  const FAVORITES_KEY = 'jiotvwebos.favorites.v1';
+  const LANGUAGE_KEY = 'jiotvwebos.language.v2';
   const QUALITY_UPGRADE_STABLE_MS = 45000;
   const QUALITY_UPGRADE_COOLDOWN_MS = 60000;
   const PLAYER_CONTROLS_HIDE_MS = 4500;
@@ -42,7 +42,7 @@
   function serviceCall(method, parameters) {
     return new Promise((resolve, reject) => {
       if (!window.webOS || !webOS.service || !webOS.service.request) {
-        reject(new Error('TV services are unavailable. Reinstall the JTV app from its TV package.'));
+        reject(new Error('TV services are unavailable. Reinstall the JioTV app from its TV package.'));
         return;
       }
       webOS.service.request(SERVICE_URI, {
@@ -52,7 +52,7 @@
           if (result && result.returnValue === false) reject(new Error(result.errorText || 'The TV service could not complete this request.'));
           else resolve(result || {});
         },
-        onFailure(error) { reject(new Error(error && error.errorText || 'Could not contact the JTV service on this TV.')); }
+        onFailure(error) { reject(new Error(error && error.errorText || 'Could not contact the JioTV service on this TV.')); }
       });
     });
   }
@@ -385,7 +385,7 @@
   }
   function patchWebOsDrmDecodingInfo() {
     const capabilities = navigator.mediaCapabilities;
-    if (!capabilities || typeof capabilities.decodingInfo !== 'function' || window.__jtvWebOsDrmMcapPatched) return;
+    if (!capabilities || typeof capabilities.decodingInfo !== 'function' || window.__jiotvWebOsDrmMcapPatched) return;
     const original = capabilities.decodingInfo;
     capabilities.decodingInfo = function(configuration) {
       return original.call(capabilities, configuration).then((info) => {
@@ -410,7 +410,7 @@
         ).catch(() => Object.assign({}, info, { supported: false, keySystemAccess: null }));
       });
     };
-    window.__jtvWebOsDrmMcapPatched = true;
+    window.__jiotvWebOsDrmMcapPatched = true;
   }
   async function startDashPlayback(channel, playbackToken, hasDrm) {
     if (!window.shaka || !window.shaka.Player || !window.shaka.Player.isBrowserSupported()) {
@@ -1008,7 +1008,7 @@
     if (!elements.dialog.open && !state.active && !state.userInteracted) focusInitialHomeItem();
   });
   window.addEventListener('beforeunload', () => { closeProgramGuide(); clearPlayerControlsTimer(); clearQualityRecovery(); destroyDashPlayer(); stopProxy(); });
-  window.JTVWebOS = { getChannels: () => [...state.channels], reloadChannels: loadChannels, tuneToChannelId: (id) => {
+  window.JioTVWebOS = { getChannels: () => [...state.channels], reloadChannels: loadChannels, tuneToChannelId: (id) => {
     const channel = state.channels.find((item) => item.id === String(id));
     if (!channel) return false;
     play(channel);

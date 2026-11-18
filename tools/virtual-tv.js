@@ -45,9 +45,9 @@ function serve() {
 async function openApp(browser, port, favorites) {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   await page.addInitScript(({ channels, favorites }) => {
-    localStorage.setItem('jtv-webos.channels.v1', JSON.stringify(channels));
-    localStorage.setItem('jtv-webos.favorites.v1', JSON.stringify(favorites));
-    localStorage.setItem('jtv-webos.language.v2', JSON.stringify('telugu'));
+    localStorage.setItem('jiotvwebos.channels.v1', JSON.stringify(channels));
+    localStorage.setItem('jiotvwebos.favorites.v1', JSON.stringify(favorites));
+    localStorage.setItem('jiotvwebos.language.v2', JSON.stringify('telugu'));
   }, { channels: sampleChannels(), favorites });
   page.on('pageerror', (error) => { throw error; });
   await page.goto(`http://127.0.0.1:${port}/index.html`);

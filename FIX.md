@@ -163,7 +163,7 @@ Findings from the code review of 2026-11-16 (items 1-8) the repo audit of 2026-1
 - **Problem:** The check saved ids 140 and 141, which are both Telugu in the sample list (Telugu is 140-147, Hindi 148-150). With only the language fix undone in a copy of the repo, the check still passed. The comment on item 9 says one Telugu and one Hindi channel were used, which was not true.
 - **Fix:** Save 141 (Zee Telugu HD) and 148 (Colors HD) and expect both, in list order. Correct the comment on item 9.
 - **Verify:** Undo only the language fix in a copy and confirm `npm run tv` fails.
-- **Fixed in:** version 0.4.5, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Fixed in:** `b93aef6` (version 0.4.7)
 - **Comment:** `checkSaved` now saves Zee Telugu HD (141) and Colors HD (Hindi, 148) and expects both, in list order. Verified by undoing only the language fix in a copy: the check now fails. The comment on item 9 is corrected.
 
 ## 15. Language chips do nothing while Saved is open
@@ -173,5 +173,5 @@ Findings from the code review of 2026-11-16 (items 1-8) the repo audit of 2026-1
 - **Problem:** Saved now ignores the language filter, but the chips are still shown with Telugu highlighted. Pressing Hindi inside Saved highlights the chip and changes nothing.
 - **Fix:** Hide the language row while Saved is open. The d-pad skips hidden rows already.
 - **Verify:** Open Saved and confirm the language row is gone and Up/Down still move through the remaining rows.
-- **Fixed in:** version 0.4.5, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Fixed in:** `b93aef6` (version 0.4.7)
 - **Comment:** The language row is hidden while Saved is open (`app.js` `render`). `checkSaved` asserts it is hidden; verified by undoing the change in a copy: the check fails. The d-pad check still passes, including Right from the Saved rail item into the list. Not yet tried on the TV.

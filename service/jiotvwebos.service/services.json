@@ -1,10 +1,10 @@
 {
   "id": "jiotvwebos.service",
-  "description": "JTV direct Jio connection and local stream proxy",
+  "description": "JioTV direct Jio connection and local stream proxy",
   "services": [
     {
       "name": "jiotvwebos.service",
-      "description": "JTV direct Jio connection and local stream proxy"
+      "description": "JioTV direct Jio connection and local stream proxy"
     }
   ]
 }
