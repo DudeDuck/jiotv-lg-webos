@@ -735,6 +735,7 @@ function resolvePlayback(channelId, options) {
               auth: authData
             };
           }
+          if (/<MPD\b/i.test(body)) throw new Error("This channel has no HLS stream: Jio's HLS URL for it is a DASH (DRM) manifest." + (dashFailure ? " " + dashFailure : ""));
           throw new Error("Jio's same-channel HLS manifest returned HTTP " + response.status + " and was not a usable HLS playlist (" + (response.headers && response.headers["content-type"] || "no content type") + "; " + (body ? "starts with: " + bodySnippet(body) : "empty body") + ")." + (dashFailure ? " " + dashFailure : ""));
         }, function(error) {
           throw new Error("Jio's same-channel HLS manifest request failed: " + (error.message || "network error") + "." + (dashFailure ? " " + dashFailure : ""));
