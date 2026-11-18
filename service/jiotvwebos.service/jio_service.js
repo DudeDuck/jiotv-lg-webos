@@ -66,6 +66,17 @@ function trustStreamUrl(rawUrl) {
   } catch (_) {}
 }
 
+/* Licence servers named by Jio's own playback response. Unlike stream hosts they do get the
+   account headers, because the licence request needs them (as in Jio's own app). */
+var trustedLicenseHosts = {};
+
+function trustLicenseUrl(rawUrl) {
+  try {
+    var u = new URL(rawUrl);
+    if (u.protocol === "https:" && !isJioHost(u.hostname)) trustedLicenseHosts[u.hostname.toLowerCase()] = true;
+  } catch (_) {}
+}
+
 var EXTERNAL_HEADERS = ["user-agent", "cookie", "range", "accept", "accept-encoding"];
 function headersForHost(hostname, headers) {
   if (isJioHost(hostname)) return headers;
@@ -604,6 +615,7 @@ function getStreamData(channelId, retry) {
         if (!hlsIsUsable && !mpdUrl) throw new Error("Jio did not return a playable stream for this channel.");
         if (hlsIsUsable) trustStreamUrl(hlsUrl);
         if (mpdUrl) trustStreamUrl(mpdUrl);
+        if (licenseUrl) trustLicenseUrl(licenseUrl);
         var hdnea = hlsIsUsable ? hdneaFromUrl(hlsUrl) : "";
         var mpdHdnea = mpdUrl ? hdneaFromUrl(mpdUrl) : "";
         var expiry = tokenExpiry(hdnea) || tokenExpiry(mpdHdnea);
@@ -917,8 +929,8 @@ function forwardLicense(res, rawUrl, headers, challenge, hops) {
   var target;
   try { target = new URL(rawUrl); }
   catch (_) { sendText(res, 502, "Jio returned an invalid license URL"); return; }
-  if ((target.protocol !== "https:" && target.protocol !== "http:") || !isJioHost(target.hostname)) {
-    sendText(res, 403, "License host is not allowed");
+  if ((target.protocol !== "https:" && target.protocol !== "http:") || !(isJioHost(target.hostname) || trustedLicenseHosts[target.hostname.toLowerCase()] === true)) {
+    sendText(res, 403, "License host is not allowed: " + target.hostname);
     return;
   }
   var transport = target.protocol === "https:" ? https : http;
@@ -1033,6 +1045,7 @@ function closeProxy() {
   streamRefreshes = {};
   streamModes = {};
   trustedStreamHosts = {};
+  trustedLicenseHosts = {};
   proxyToken = "";
   proxyPort = 0;
   if (proxyServer) {
