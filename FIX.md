@@ -111,7 +111,7 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 - **Problem:** The Saved list and the language chip both filter at once. With Zee Telugu HD and Colors HD (Hindi) saved and the language on Telugu, Saved shows only the Telugu channel under "Telugu channels". The Hindi one looks lost.
 - **Fix:** Skip the language check when Saved is open, show the heading "Saved channels", and drop the `state.language === 'all'` condition from the "No saved channels yet" message.
 - **Verify:** Save one Telugu and one Hindi channel, open Saved with Telugu selected, and see both.
-- **Fixed in:** version 0.4.4, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Fixed in:** `2a45180` (version 0.4.4)
 - **Comment:** Saved now ignores the language chip, shows the heading "Saved channels", and the empty message no longer depends on the language. `npm run tv` checks it with one Telugu and one Hindi channel saved: both are listed. The check fails on the old code (confirmed by temporarily restoring it).
 
 ## 10. GitHub never builds or tests the fork
@@ -121,7 +121,7 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 - **Problem:** GitHub turns Actions off on forks by default. The run list is empty, so the syntax check, `node --test` and package build have never run there.
 - **Fix:** Enable Actions for the repo (Actions tab, or `gh api` on the repo's actions permissions). No code change.
 - **Verify:** Push a commit and see a green run in the Actions tab.
-- **Fixed in:** version 0.4.4, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Fixed in:** `2a45180` (version 0.4.4)
 - **Comment:** Actions was off on the fork. Enabled it with `gh api` (repo actions permissions); the Build webOS IPK workflow now shows as active. No run has happened yet; the first one starts on the next push, so the green run is still to be confirmed.
 
 ## 11. Virtual TV and d-pad test are not in the repo
@@ -131,7 +131,7 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 - **Problem:** The 1080p browser preview and the scripted d-pad test lived in a temporary folder that has since been cleared. Home-screen navigation had three bugs and now has no test anywhere.
 - **Fix:** Commit one script that serves the app with sample channels, replays a fixed d-pad sequence, checks where focus lands, and can take screenshots. `playwright-core` is a development-only dependency. Keep the script out of the TV package. Do not match Node's test file patterns, so `node --test` in the build still skips it.
 - **Verify:** `npm run tv` prints a pass for navigation and for the Saved list.
-- **Fixed in:** version 0.4.4, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Fixed in:** `2a45180` (version 0.4.4)
 - **Comment:** Added `tools/virtual-tv.js` and `package.json` with `playwright-core` as the only (development) dependency. `npm run tv` runs a d-pad focus-trail check and the Saved checks; both pass. It is kept out of the TV package through `appinfo.json` excludes (tools, node_modules, app-level package files) and is not picked up by `node --test`. The service's own `package.json` stays in the package, which I checked by listing the rebuilt `.ipk`. Needs a browser: set `CHROMIUM_PATH` or run `npx playwright-core install chromium-headless-shell`. It is not run in the GitHub build.
 
 ## 12. Removing a channel inside Saved drops the focus
@@ -141,7 +141,7 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 - **Problem:** Inside Saved, an unsaved card disappears after the grid rebuilds, so there is nothing to refocus and the next arrow press jumps to the language row.
 - **Fix:** When the card is gone, focus the card now at the same position, or the last one, or the Saved rail item if the list is empty.
 - **Verify:** In Saved with three channels, press Red on the middle one; focus lands on the next card.
-- **Fixed in:** version 0.4.4, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Fixed in:** `2a45180` (version 0.4.4)
 - **Comment:** `toggleFavorite` now focuses the card that takes the removed card's place, or the last card, or the Saved rail item when the list is empty. Covered by the Saved check in `npm run tv`. Not yet tried with the real remote.
 
 ## 13. README does not mention the Red button
@@ -151,5 +151,5 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 - **Problem:** The only hint about saving is on the empty Saved screen, which disappears once one channel is saved.
 - **Fix:** Add one line to Features, and a short note on the virtual TV under Build.
 - **Verify:** Read the README.
-- **Fixed in:** version 0.4.4, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Fixed in:** `2a45180` (version 0.4.4)
 - **Comment:** Added the Red button line to Features, and a short note about `npm run tv` in the Build section.
