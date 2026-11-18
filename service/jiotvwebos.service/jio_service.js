@@ -6,6 +6,7 @@ var dns = require("dns");
 var crypto = require("crypto");
 var zlib = require("zlib");
 var URL = require("url").URL;
+var hostUtils = require("./host_policy");
 var hlsUtils = require("./hls_utils");
 var sanitizeWebOsHlsManifest = hlsUtils.sanitizeWebOsHlsManifest;
 var rewriteDashManifest = hlsUtils.rewriteDashManifest;
@@ -46,46 +47,10 @@ function uuid() {
   return h.slice(0, 8) + "-" + h.slice(8, 12) + "-" + h.slice(12, 16) + "-" + h.slice(16, 20) + "-" + h.slice(20);
 }
 
-function isJioHost(hostname) {
-  var host = String(hostname || "").toLowerCase();
-  return host === "jio.com" || host.slice(-8) === ".jio.com" || host.slice(-10) === ".jiocdn.com";
-}
-
-/* Hosts that Jio's own playback response pointed at (e.g. a third-party CDN). They get
-   only the signed stream token, never the account headers. */
-var trustedStreamHosts = {};
-
-function isAllowedHost(hostname) {
-  return isJioHost(hostname) || trustedStreamHosts[String(hostname || "").toLowerCase()] === true;
-}
-
-function trustStreamUrl(rawUrl) {
-  try {
-    var u = new URL(rawUrl);
-    if (u.protocol === "https:" && !isJioHost(u.hostname)) trustedStreamHosts[u.hostname.toLowerCase()] = true;
-  } catch (_) {}
-}
-
-/* Licence servers named by Jio's own playback response. Unlike stream hosts they do get the
-   account headers, because the licence request needs them (as in Jio's own app). */
-var trustedLicenseHosts = {};
-
-function trustLicenseUrl(rawUrl) {
-  try {
-    var u = new URL(rawUrl);
-    if (u.protocol === "https:" && !isJioHost(u.hostname)) trustedLicenseHosts[u.hostname.toLowerCase()] = true;
-  } catch (_) {}
-}
-
-var EXTERNAL_HEADERS = ["user-agent", "cookie", "range", "accept", "accept-encoding"];
-function headersForHost(hostname, headers) {
-  if (isJioHost(hostname)) return headers;
-  var out = {};
-  Object.keys(headers || {}).forEach(function(name) {
-    if (EXTERNAL_HEADERS.indexOf(name.toLowerCase()) >= 0) out[name] = headers[name];
-  });
-  return out;
-}
+var hostPolicy = hostUtils.createHostPolicy();
+var isJioHost = hostUtils.isJioHost;
+var isAllowedHost = hostPolicy.isAllowedHost;
+var headersForHost = hostPolicy.headersForHost;
 
 function decodeBody(response, body) {
   var encoding = String(response.headers["content-encoding"] || "").toLowerCase();
@@ -613,9 +578,9 @@ function getStreamData(channelId, retry) {
         var licenseUrl = String(mpd.key || "").trim();
         var hlsIsUsable = !!hlsUrl && !/paywall/i.test(hlsUrl);
         if (!hlsIsUsable && !mpdUrl) throw new Error("Jio did not return a playable stream for this channel.");
-        if (hlsIsUsable) trustStreamUrl(hlsUrl);
-        if (mpdUrl) trustStreamUrl(mpdUrl);
-        if (licenseUrl) trustLicenseUrl(licenseUrl);
+        if (hlsIsUsable) hostPolicy.trustStreamUrl(hlsUrl);
+        if (mpdUrl) hostPolicy.trustStreamUrl(mpdUrl);
+        if (licenseUrl) hostPolicy.trustLicenseUrl(licenseUrl);
         var hdnea = hlsIsUsable ? hdneaFromUrl(hlsUrl) : "";
         var mpdHdnea = mpdUrl ? hdneaFromUrl(mpdUrl) : "";
         var expiry = tokenExpiry(hdnea) || tokenExpiry(mpdHdnea);
@@ -929,7 +894,7 @@ function forwardLicense(res, rawUrl, headers, challenge, hops) {
   var target;
   try { target = new URL(rawUrl); }
   catch (_) { sendText(res, 502, "Jio returned an invalid license URL"); return; }
-  if ((target.protocol !== "https:" && target.protocol !== "http:") || !(isJioHost(target.hostname) || trustedLicenseHosts[target.hostname.toLowerCase()] === true)) {
+  if ((target.protocol !== "https:" && target.protocol !== "http:") || !hostPolicy.isLicenseHostAllowed(target.hostname)) {
     sendText(res, 403, "License host is not allowed: " + target.hostname);
     return;
   }
@@ -1044,8 +1009,7 @@ function closeProxy() {
   streamCache = {};
   streamRefreshes = {};
   streamModes = {};
-  trustedStreamHosts = {};
-  trustedLicenseHosts = {};
+  hostPolicy.reset();
   proxyToken = "";
   proxyPort = 0;
   if (proxyServer) {
