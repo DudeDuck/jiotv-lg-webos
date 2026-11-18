@@ -6,6 +6,7 @@ var dns = require("dns");
 var crypto = require("crypto");
 var zlib = require("zlib");
 var URL = require("url").URL;
+var hostUtils = require("./host_policy");
 var hlsUtils = require("./hls_utils");
 var sanitizeWebOsHlsManifest = hlsUtils.sanitizeWebOsHlsManifest;
 var rewriteDashManifest = hlsUtils.rewriteDashManifest;
@@ -46,10 +47,10 @@ function uuid() {
   return h.slice(0, 8) + "-" + h.slice(8, 12) + "-" + h.slice(12, 16) + "-" + h.slice(16, 20) + "-" + h.slice(20);
 }
 
-function isJioHost(hostname) {
-  var host = String(hostname || "").toLowerCase();
-  return host === "jio.com" || host.slice(-8) === ".jio.com" || host.slice(-10) === ".jiocdn.com";
-}
+var hostPolicy = hostUtils.createHostPolicy();
+var isJioHost = hostUtils.isJioHost;
+var isAllowedHost = hostPolicy.isAllowedHost;
+var headersForHost = hostPolicy.headersForHost;
 
 function decodeBody(response, body) {
   var encoding = String(response.headers["content-encoding"] || "").toLowerCase();
@@ -62,11 +63,11 @@ function requestText(rawUrl, method, headers, body) {
   return new Promise(function(resolve, reject) {
     var target;
     try { target = new URL(rawUrl); } catch (e) { reject(new Error("Invalid Jio URL")); return; }
-    if ((target.protocol !== "https:" && target.protocol !== "http:") || !isJioHost(target.hostname)) {
-      reject(new Error("Refusing non-Jio network request"));
+    if ((target.protocol !== "https:" && target.protocol !== "http:") || !isAllowedHost(target.hostname)) {
+      reject(new Error("Refusing network request to unlisted host " + target.hostname));
       return;
     }
-    var requestHeaders = Object.assign({ "Accept-Encoding": "identity" }, headers || {});
+    var requestHeaders = Object.assign({ "Accept-Encoding": "identity" }, headersForHost(target.hostname, headers || {}));
     var payload = body == null ? null : Buffer.from(String(body), "utf8");
     if (payload) requestHeaders["Content-Length"] = String(payload.length);
     var transport = target.protocol === "https:" ? https : http;
@@ -124,6 +125,13 @@ function getJioErrorDetail(response) {
   return detail;
 }
 
+function bodySnippet(text) {
+  var out = String(text || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  out = out.replace(/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "[token]");
+  out = out.replace(/(hdnea|ssotoken|accesstoken)=[^&\s"']+/ig, "$1=[redacted]");
+  return out.length > 90 ? out.slice(0, 87) + "..." : out;
+}
+
 function getJioRequestId(response) {
   var headers = response && response.headers || {};
   var names = ["x-request-id", "x-correlation-id", "x-amzn-requestid", "x-trace-id"];
@@ -145,7 +153,7 @@ function requestTextFollow(rawUrl, headers, hops) {
     var next;
     try { next = new URL(location, rawUrl); }
     catch (_) { throw new Error("Jio returned an invalid stream redirect."); }
-    if (!isJioHost(next.hostname)) throw new Error("Jio redirected the stream to an unsupported host.");
+    if (!isAllowedHost(next.hostname)) throw new Error("Jio redirected the stream to an unsupported host (" + next.hostname + ").");
     return requestTextFollow(next.toString(), headers, count - 1);
   });
 }
@@ -570,6 +578,9 @@ function getStreamData(channelId, retry) {
         var licenseUrl = String(mpd.key || "").trim();
         var hlsIsUsable = !!hlsUrl && !/paywall/i.test(hlsUrl);
         if (!hlsIsUsable && !mpdUrl) throw new Error("Jio did not return a playable stream for this channel.");
+        if (hlsIsUsable) hostPolicy.trustStreamUrl(hlsUrl);
+        if (mpdUrl) hostPolicy.trustStreamUrl(mpdUrl);
+        if (licenseUrl) hostPolicy.trustLicenseUrl(licenseUrl);
         var hdnea = hlsIsUsable ? hdneaFromUrl(hlsUrl) : "";
         var mpdHdnea = mpdUrl ? hdneaFromUrl(mpdUrl) : "";
         var expiry = tokenExpiry(hdnea) || tokenExpiry(mpdHdnea);
@@ -701,7 +712,8 @@ function resolvePlayback(channelId, options) {
               auth: authData
             };
           }
-          throw new Error("Jio's same-channel HLS manifest returned HTTP " + response.status + " and was not a usable HLS playlist." + (dashFailure ? " " + dashFailure : ""));
+          if (/<MPD\b/i.test(body)) throw new Error("This channel has no HLS stream: Jio's HLS URL for it is a DASH (DRM) manifest." + (dashFailure ? " " + dashFailure : ""));
+          throw new Error("Jio's same-channel HLS manifest returned HTTP " + response.status + " and was not a usable HLS playlist (" + (response.headers && response.headers["content-type"] || "no content type") + "; " + (body ? "starts with: " + bodySnippet(body) : "empty body") + ")." + (dashFailure ? " " + dashFailure : ""));
         }, function(error) {
           throw new Error("Jio's same-channel HLS manifest request failed: " + (error.message || "network error") + "." + (dashFailure ? " " + dashFailure : ""));
         });
@@ -713,7 +725,7 @@ function resolvePlayback(channelId, options) {
         var mpdHost;
         try { mpdHost = new URL(mpdUrl).hostname; }
         catch (_) { return Promise.resolve({ fallback: true, failure: "Jio returned an invalid DASH URL." }); }
-        if (!isJioHost(mpdHost)) return Promise.resolve({ fallback: true, failure: "Jio returned an unsupported DASH host." });
+        if (!isAllowedHost(mpdHost)) return Promise.resolve({ fallback: true, failure: "Jio returned an unsupported DASH host (" + mpdHost + ")." });
         return requestTextFollow(mpdUrl, streamHeaders(key, mpdToken), 3).then(function(response) {
           var body = String(response.text || "").trim();
           if (response.status >= 200 && response.status < 300 && /<MPD\b/i.test(body)) {
@@ -770,8 +782,8 @@ function isKeyUrl(rawUrl) {
 function proxyUpstream(req, res, channelId, rawUrl, hops) {
   var target;
   try { target = new URL(rawUrl); } catch (_) { sendText(res, 400, "Invalid upstream URL"); return; }
-  if ((target.protocol !== "https:" && target.protocol !== "http:") || !isJioHost(target.hostname)) {
-    sendText(res, 403, "Upstream host is not allowed");
+  if ((target.protocol !== "https:" && target.protocol !== "http:") || !isAllowedHost(target.hostname)) {
+    sendText(res, 403, "Upstream host is not allowed: " + target.hostname);
     return;
   }
   ensureStream(channelId).then(function(data) {
@@ -779,6 +791,7 @@ function proxyUpstream(req, res, channelId, rawUrl, hops) {
     var signedUrl = urlWithHdnea(target.toString(), streamToken);
     var signedTarget = new URL(signedUrl);
     var headers = isKeyUrl(signedTarget.pathname) ? licenseHeaders(channelId, streamToken) : streamHeaders(channelId, streamToken);
+    headers = headersForHost(signedTarget.hostname, headers);
     headers["Accept-Encoding"] = "identity";
     if (req.headers.range) headers.Range = req.headers.range;
     var transport = signedTarget.protocol === "https:" ? https : http;
@@ -862,7 +875,8 @@ function serveDash(req, res, channelId) {
     if (!data.mpdUrl) throw new Error("Jio did not return an alternate DASH stream for this channel.");
     var token = data.mpdHdnea || data.hdnea;
     var manifestUrl = urlWithHdnea(data.mpdUrl, data.mpdHdnea);
-    if (!isJioHost(new URL(manifestUrl).hostname)) throw new Error("Jio returned an unsupported DASH host.");
+    var dashHost = new URL(manifestUrl).hostname;
+    if (!isAllowedHost(dashHost)) throw new Error("Jio returned an unsupported DASH host (" + dashHost + ").");
     return requestTextFollow(manifestUrl, streamHeaders(channelId, token), 3).then(function(response) {
       if (response.status < 200 || response.status >= 300) throw new Error("Jio DASH playlist failed (HTTP " + response.status + ").");
       if (!/<MPD\b/i.test(String(response.text || ""))) throw new Error("Jio did not return a DASH manifest.");
@@ -880,8 +894,8 @@ function forwardLicense(res, rawUrl, headers, challenge, hops) {
   var target;
   try { target = new URL(rawUrl); }
   catch (_) { sendText(res, 502, "Jio returned an invalid license URL"); return; }
-  if ((target.protocol !== "https:" && target.protocol !== "http:") || !isJioHost(target.hostname)) {
-    sendText(res, 403, "License host is not allowed");
+  if ((target.protocol !== "https:" && target.protocol !== "http:") || !hostPolicy.isLicenseHostAllowed(target.hostname)) {
+    sendText(res, 403, "License host is not allowed: " + target.hostname);
     return;
   }
   var transport = target.protocol === "https:" ? https : http;
@@ -995,6 +1009,7 @@ function closeProxy() {
   streamCache = {};
   streamRefreshes = {};
   streamModes = {};
+  hostPolicy.reset();
   proxyToken = "";
   proxyPort = 0;
   if (proxyServer) {
