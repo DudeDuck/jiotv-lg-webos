@@ -1,6 +1,6 @@
 # Fix tracker
 
-Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 2026-11-18 (items 9-13). When an item is fixed, tick its box, fill in **Fixed in** with the commit hash, and add a short **Comment** on what was done and how it was checked.
+Findings from the code review of 2026-11-16 (items 1-8) the repo audit of 2026-11-18 (items 9-13) and the review of those fixes (items 14-15). When an item is fixed, tick its box, fill in **Fixed in** with the commit hash, and add a short **Comment** on what was done and how it was checked.
 
 | # | Item | Priority | Status |
 |---|------|----------|--------|
@@ -17,6 +17,8 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 | 11 | Virtual TV and d-pad test are not in the repo | Should fix | Fixed |
 | 12 | Removing a channel inside Saved drops the focus | Nice to have | Fixed |
 | 13 | README does not mention the Red button | Nice to have | Fixed |
+| 14 | The Saved check does not test cross-language saving | Should fix | Fixed |
+| 15 | Language chips do nothing while Saved is open | Should fix | Fixed |
 
 ---
 
@@ -77,7 +79,7 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 ## 6. No tests
 
 - [x] Fixed
-- **Where:** `service/com.codex.jtvwebos.service/hls_utils.js`
+- **Where:** `service/jiotvwebos.service/hls_utils.js`
 - **Problem:** This module rewrites every stream playlist before the TV plays it, and nothing checks it. The two `\\d` typos also got in because no code runs outside the TV.
 - **Fix:** Add `test/hls_utils.test.js` using Node's built-in `node:test`. Feed one sample HLS playlist and one sample DASH manifest through the module and check the output. Add `node --test` to the build workflow. No new dependency.
 - **Verify:** `node --test` passes locally and in the GitHub build.
@@ -112,7 +114,7 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 - **Fix:** Skip the language check when Saved is open, show the heading "Saved channels", and drop the `state.language === 'all'` condition from the "No saved channels yet" message.
 - **Verify:** Save one Telugu and one Hindi channel, open Saved with Telugu selected, and see both.
 - **Fixed in:** `2a45180` (version 0.4.4)
-- **Comment:** Saved now ignores the language chip, shows the heading "Saved channels", and the empty message no longer depends on the language. `npm run tv` checks it with one Telugu and one Hindi channel saved: both are listed. The check fails on the old code (confirmed by temporarily restoring it).
+- **Comment:** Saved now ignores the language chip, shows the heading "Saved channels", and the empty message no longer depends on the language. `npm run tv` checks that Saved lists saved channels. Note: the first version of that check saved two Telugu channels, so it did not test other languages; item 14 corrected it to use one Telugu and one Hindi channel.
 
 ## 10. GitHub never builds or tests the fork
 
@@ -153,3 +155,23 @@ Findings from the code review of 2026-11-16 (items 1-8) and the repo audit of 20
 - **Verify:** Read the README.
 - **Fixed in:** `2a45180` (version 0.4.4)
 - **Comment:** Added the Red button line to Features, and a short note about `npm run tv` in the Build section.
+
+## 14. The Saved check does not test cross-language saving
+
+- [x] Fixed
+- **Where:** `tools/virtual-tv.js`, `checkSaved`
+- **Problem:** The check saved ids 140 and 141, which are both Telugu in the sample list (Telugu is 140-147, Hindi 148-150). With only the language fix undone in a copy of the repo, the check still passed. The comment on item 9 says one Telugu and one Hindi channel were used, which was not true.
+- **Fix:** Save 141 (Zee Telugu HD) and 148 (Colors HD) and expect both, in list order. Correct the comment on item 9.
+- **Verify:** Undo only the language fix in a copy and confirm `npm run tv` fails.
+- **Fixed in:** version 0.4.5, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Comment:** `checkSaved` now saves Zee Telugu HD (141) and Colors HD (Hindi, 148) and expects both, in list order. Verified by undoing only the language fix in a copy: the check now fails. The comment on item 9 is corrected.
+
+## 15. Language chips do nothing while Saved is open
+
+- [x] Fixed
+- **Where:** `app.js`, `render` (language row visibility)
+- **Problem:** Saved now ignores the language filter, but the chips are still shown with Telugu highlighted. Pressing Hindi inside Saved highlights the chip and changes nothing.
+- **Fix:** Hide the language row while Saved is open. The d-pad skips hidden rows already.
+- **Verify:** Open Saved and confirm the language row is gone and Up/Down still move through the remaining rows.
+- **Fixed in:** version 0.4.5, working tree on `main`, 2026-11-18 (replace with the commit hash once committed)
+- **Comment:** The language row is hidden while Saved is open (`app.js` `render`). `checkSaved` asserts it is hidden; verified by undoing the change in a copy: the check fails. The d-pad check still passes, including Right from the Saved rail item into the list. Not yet tried on the TV.

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { sanitizeWebOsHlsManifest, rewriteDashManifest } = require('../service/com.codex.jtvwebos.service/hls_utils');
+const { sanitizeWebOsHlsManifest, rewriteDashManifest } = require('../service/jiotvwebos.service/hls_utils');
 
 test('HLS: drops tags the LG player rejects, keeps the rest', () => {
   const out = sanitizeWebOsHlsManifest('#EXTM3U\n#EXT-X-PROGRAM-DATE-TIME:2026-01-01T00:00:00Z\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXTINF:4,\nseg1.ts');

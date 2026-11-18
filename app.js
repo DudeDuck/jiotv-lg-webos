@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const SERVICE_URI = 'luna://com.codex.jtvwebos.service/';
+  const SERVICE_URI = 'luna://jiotvwebos.service/';
   const AUTH_KEY = 'jtv-webos.jio-auth.v1';
   const CHANNELS_KEY = 'jtv-webos.channels.v1';
   const FAVORITES_KEY = 'jtv-webos.favorites.v1';
@@ -165,7 +165,7 @@
     elements.empty.classList.toggle('visible', noChannels);
     elements.list.hidden = noChannels;
     elements.groups.hidden = !state.channels.length;
-    elements.languageFilterRow.hidden = !state.channels.length;
+    elements.languageFilterRow.hidden = !state.channels.length || state.group === 'favorites';
     if (!state.channels.length) {
       $('empty').querySelector('h2').textContent = state.loading ? 'Loading Jio channels' : 'Channels are unavailable';
       $('empty').querySelector('p').textContent = state.loading

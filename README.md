@@ -27,12 +27,12 @@ This source tree contains no account credentials, OTPs, access tokens, device ad
 Use the LG webOS CLI to package the app and service together:
 
 ```sh
-ares-package . service/com.codex.jtvwebos.service --outdir dist
+ares-package . service/jiotvwebos.service --outdir dist
 ```
 
 To try UI changes without the TV, run `npm install` once, then `npm run tv`. It opens the app at 1920x1080 with sample channels, replays remote-key presses and checks where focus lands (see the header of `tools/virtual-tv.js` for the browser it needs).
 
-Install the resulting IPK with `ares-install`, then launch `com.codex.jtvwebos`.
+Install the resulting IPK with `ares-install`, then launch `jiotvwebos`.
 
 ## Install on an LG webOS TV (Developer Mode)
 
@@ -108,7 +108,7 @@ This is an unofficial sideloading workflow for personal testing. Use the generat
 5. Launch the app:
 
    ```sh
-   ares-launch --device tv com.codex.jtvwebos
+   ares-launch --device tv jiotvwebos
    ```
 
 If your build generated the IPK under a different filename or directory, use that exact path. The app ID above matches this repository's build instructions.
@@ -119,7 +119,7 @@ If your build generated the IPK under a different filename or directory, use tha
 - **Pairing fails:** Reopen Developer Mode, ensure **Key Server** is on, and retry with the current passphrase. Confirm the session has not expired.
 - **Installation fails:** Check that the package is a successfully built webOS `.ipk`, not an Android `.apk`.
 - **App disappears later:** Check Developer Mode session status and extend it before expiry. Disabling Developer Mode removes development-installed apps.
-- **App installs but will not launch:** Confirm the package build succeeded and use the app ID `com.codex.jtvwebos`. Collect logs before opening an issue. Never post the TV passphrase, private SSH keys, Jio OTPs, or session tokens.
+- **App installs but will not launch:** Confirm the package build succeeded and use the app ID `jiotvwebos`. Collect logs before opening an issue. Never post the TV passphrase, private SSH keys, Jio OTPs, or session tokens.
 
 ### Official references
 

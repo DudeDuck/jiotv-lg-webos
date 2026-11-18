@@ -51,7 +51,7 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check app.js
-          node --check service/com.codex.jtvwebos.service/jio_service.js
+          node --check service/jiotvwebos.service/jio_service.js
           node --test
 
       - name: Install webOS CLI
@@ -60,7 +60,7 @@ jobs:
       - name: Package app and service into IPK
         run: |
           mkdir -p dist
-          ares-package -o dist . service/com.codex.jtvwebos.service
+          ares-package -o dist . service/jiotvwebos.service
 
       - name: Verify generated IPK
         shell: bash

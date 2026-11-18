@@ -92,11 +92,12 @@ async function checkDpad(browser, port) {
 }
 
 async function checkSaved(browser, port) {
-  // One Telugu and one Hindi channel saved, language chip on Telugu.
-  const page = await openApp(browser, port, ['141', '140']);
+  // 141 is Zee Telugu HD and 148 is Colors HD (Hindi); the language chip starts on Telugu.
+  const page = await openApp(browser, port, ['141', '148']);
   await page.click('.rail-item[data-group="favorites"]');
   const titles = () => page.$$eval('.channel-card .channel-copy > strong', (nodes) => nodes.map((n) => n.textContent));
-  assert.deepStrictEqual(await titles(), ['Star Maa HD', 'Zee Telugu HD'].sort(), 'Saved lists channels of every language');
+  assert.deepStrictEqual(await titles(), ['Zee Telugu HD', 'Colors HD'], 'Saved lists channels of every language');
+  assert.ok(await page.isHidden('#language-filter-row'), 'language chips are hidden inside Saved');
   assert.strictEqual(await page.textContent('#library-title'), 'Saved channels');
   await shot(page, 'saved-all-languages.png');
 

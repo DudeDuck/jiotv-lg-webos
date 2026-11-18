@@ -1,9 +1,9 @@
 {
-  "id": "com.codex.jtvwebos.service",
+  "id": "jiotvwebos.service",
   "description": "JTV direct Jio connection and local stream proxy",
   "services": [
     {
-      "name": "com.codex.jtvwebos.service",
+      "name": "jiotvwebos.service",
       "description": "JTV direct Jio connection and local stream proxy"
     }
   ]
