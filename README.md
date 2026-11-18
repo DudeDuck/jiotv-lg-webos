@@ -18,6 +18,7 @@ This source tree contains no account credentials, OTPs, access tokens, device ad
 - Telugu as the default language filter, followed by Hindi, English, Bengali and the rest.
 - Selecting the active category again clears only that category while retaining the selected language.
 - Remote-friendly navigation, direct channel-ID tuning, and a centered channel-ID overlay.
+- Press Red on a channel to add or remove it from Saved. Saved lists every saved channel, whatever its language.
 - Best-quality-first HLS playback with step-down on sustained buffering and gradual recovery after stable playback.
 - DASH playback when supported by the TV, with a same-channel HLS retry when appropriate.
 
@@ -28,6 +29,8 @@ Use the LG webOS CLI to package the app and service together:
 ```sh
 ares-package . service/com.codex.jtvwebos.service --outdir dist
 ```
+
+To try UI changes without the TV, run `npm install` once, then `npm run tv`. It opens the app at 1920x1080 with sample channels, replays remote-key presses and checks where focus lands (see the header of `tools/virtual-tv.js` for the browser it needs).
 
 Install the resulting IPK with `ares-install`, then launch `com.codex.jtvwebos`.
 

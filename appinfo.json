@@ -1,6 +1,6 @@
 {
   "id": "com.codex.jtvwebos",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "vendor": "JTV WebOS Community Client",
   "type": "web",
   "main": "index.html",
@@ -10,5 +10,17 @@
   "resolution": "1920x1080",
   "disableBackHistoryAPI": true,
   "requiredACG": [],
-  "exclude": ["/\\.git", "/\\.github", "/\\.gitignore", "/README\\.md", "/FIX\\.md", "applications/[^/]+/service", "applications/[^/]+/test"]
+  "exclude": [
+    "/\\.git",
+    "/\\.github",
+    "/\\.gitignore",
+    "/README\\.md",
+    "/FIX\\.md",
+    "applications/[^/]+/service",
+    "applications/[^/]+/test",
+    "applications/[^/]+/tools",
+    "applications/[^/]+/node_modules",
+    "applications/[^/]+/package\\.json",
+    "applications/[^/]+/package-lock\\.json"
+  ]
 }

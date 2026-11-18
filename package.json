@@ -1,0 +1,12 @@
+{
+  "name": "jtv-webos",
+  "private": true,
+  "description": "Development tools for the JTV webOS app. The TV package does not include this file.",
+  "scripts": {
+    "test": "node --test",
+    "tv": "node tools/virtual-tv.js"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}

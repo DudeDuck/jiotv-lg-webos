@@ -88,7 +88,7 @@
     return state.channels.filter((channel) => {
       const matchesGroup = state.group === 'all' || (state.group === 'favorites' ? favorites.has(channel.id) : channel.group === state.group);
       const matchesQuery = !query || `${channel.title} ${channel.group} ${channel.language}`.toLocaleLowerCase().includes(query);
-      const matchesLanguage = state.language === 'all' || languageKey(channel.language) === state.language;
+      const matchesLanguage = state.group === 'favorites' || state.language === 'all' || languageKey(channel.language) === state.language;
       return matchesGroup && matchesQuery && matchesLanguage;
     });
   }
@@ -100,7 +100,7 @@
     const channels = filteredChannels();
     const favorites = new Set(readStored(FAVORITES_KEY, []));
     const titleByLanguage = { telugu: 'Telugu channels', bengali: 'Bengali channels', hindi: 'Hindi channels', english: 'English channels' };
-    $('library-title').textContent = titleByLanguage[state.language] || 'Live channels';
+    $('library-title').textContent = state.group === 'favorites' ? 'Saved channels' : (titleByLanguage[state.language] || 'Live channels');
     renderLanguageFilters();
     clearElement(elements.groups);
     const groups = [...new Set(state.channels.map((channel) => channel.group).filter(Boolean))];
@@ -174,7 +174,7 @@
       $('settings-cta').hidden = false;
       $('settings-cta').textContent = state.loading ? 'Settings' : 'Sign in or retry';
     } else {
-      const showingEmptyFavorites = state.group === 'favorites' && state.language === 'all' && !elements.search.value.trim();
+      const showingEmptyFavorites = state.group === 'favorites' && !elements.search.value.trim();
       $('empty').querySelector('h2').textContent = showingEmptyFavorites ? 'No saved channels yet' : 'No channels found';
       $('empty').querySelector('p').textContent = showingEmptyFavorites ? 'Press the Red button on a channel to save it.' : 'Try a different search, language, or category.';
       $('settings-cta').hidden = true;
@@ -772,9 +772,12 @@
   function toggleFavorite(channel) {
     const favorites = new Set(readStored(FAVORITES_KEY, []));
     if (favorites.has(channel.id)) favorites.delete(channel.id); else favorites.add(channel.id);
+    const position = state.selected;
     localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites])); render();
-    const card = Array.from(elements.list.querySelectorAll('.channel-card')).find((item) => item.dataset.channelId === channel.id);
-    if (card) card.focus();
+    const cards = Array.from(elements.list.querySelectorAll('.channel-card'));
+    // An unsaved card vanishes from Saved: focus its neighbour, or the rail if none is left.
+    const card = cards.find((item) => item.dataset.channelId === channel.id) || cards[Math.min(position, cards.length - 1)];
+    (card || document.querySelector('.rail-item.selected')).focus();
     showToast(favorites.has(channel.id) ? 'Added to Saved' : 'Removed from Saved');
   }
 
