@@ -16,7 +16,7 @@
   const QUALITY_UPGRADE_COOLDOWN_MS = 60000;
   const PLAYER_CONTROLS_HIDE_MS = 4500;
   const state = {
-    channels: visibleChannels(readStored(CHANNELS_KEY, [])), group: 'all', language: readStored(LANGUAGE_KEY, 'telugu'), selected: -1,
+    channels: visibleChannels(readStored(CHANNELS_KEY, [])), group: 'all', language: readLanguage(), selected: -1,
     tuneBuffer: '', tuneTimer: null,
     active: null, auth: readStored(AUTH_KEY, null), proxyBaseUrl: '', proxyRequest: null,
     proxyPromise: null, loading: false, qualityLevels: null, qualityIndex: 0,
@@ -43,6 +43,18 @@
     guideProgress: $('guide-progress-fill'), guideProgressBar: $('guide-progress'), guideProgramList: $('guide-program-list'), guideStatus: $('guide-status')
   };
 
+  // The language is stored as JSON ("hindi"). Builds up to 0.4.11 stored it unquoted
+  // (hindi), which JSON.parse rejects, so read that form too.
+  function readLanguage() {
+    let raw = null;
+    try { raw = localStorage.getItem(LANGUAGE_KEY); } catch (_) {}
+    if (!raw) return 'telugu';
+    try { const value = JSON.parse(raw); return typeof value === 'string' && value ? value : 'telugu'; }
+    catch (_) { return raw; }
+  }
+  function saveLanguage(language) {
+    try { localStorage.setItem(LANGUAGE_KEY, JSON.stringify(language)); } catch (_) {}
+  }
   function readStored(key, fallback) {
     try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; }
     catch (_) { return fallback; }
@@ -232,7 +244,7 @@
       button.dataset.language = filter.key; button.textContent = `${filter.label} (${filter.count.toLocaleString()})`;
       button.setAttribute('aria-pressed', state.language === filter.key ? 'true' : 'false');
       button.addEventListener('click', () => {
-        state.language = filter.key; localStorage.setItem(LANGUAGE_KEY, filter.key); state.selected = -1; render();
+        state.language = filter.key; saveLanguage(filter.key); state.selected = -1; render();
         const selected = Array.from(elements.languages.querySelectorAll('button')).find((item) => item.dataset.language === filter.key);
         if (selected) selected.focus();
       });
@@ -254,7 +266,7 @@
       state.group = 'all';
       if (state.language !== 'all' && !state.channels.some((channel) => languageKey(channel.language) === state.language)) {
         state.language = state.channels.some((channel) => languageKey(channel.language) === 'telugu') ? 'telugu' : 'all';
-        localStorage.setItem(LANGUAGE_KEY, state.language);
+        saveLanguage(state.language);
       }
       setConnection(state.auth ? 'Jio account ready' : 'Sign in to watch', !!state.auth);
       return state.channels.length;
@@ -1087,7 +1099,7 @@
   document.querySelectorAll('.rail-item').forEach((button) => button.addEventListener('click', () => {
     const list = button.dataset.group;
     if (list === 'favorites') state.group = 'favorites';
-    else { state.group = 'all'; state.language = list; localStorage.setItem(LANGUAGE_KEY, list); elements.search.value = ''; }
+    else { state.group = 'all'; state.language = list; saveLanguage(list); elements.search.value = ''; }
     state.selected = -1; render(); button.focus();
   }));
   elements.search.addEventListener('input', render);

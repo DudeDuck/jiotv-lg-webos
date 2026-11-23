@@ -1,6 +1,6 @@
 {
   "id": "jiotvwebos",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "vendor": "JioTV WebOS Community Client",
   "type": "web",
   "main": "index.html",

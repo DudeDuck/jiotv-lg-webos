@@ -53,7 +53,8 @@ async function openApp(browser, port, favorites, options = {}) {
   await page.addInitScript(({ channels, favorites, options }) => {
     localStorage.setItem('jiotvwebos.channels.v1', JSON.stringify(channels));
     localStorage.setItem('jiotvwebos.favorites.v1', JSON.stringify(favorites));
-    localStorage.setItem('jiotvwebos.language.v2', JSON.stringify('telugu'));
+    // `language: null` leaves the stored language alone (to test restarts); a string is stored as-is.
+    if (options.language !== null) localStorage.setItem('jiotvwebos.language.v2', options.language || JSON.stringify('telugu'));
     if (options.signedIn) localStorage.setItem('jiotvwebos.jio-auth.v1', JSON.stringify({ authToken: 'test-token', mobile: '9000000000' }));
     if (!options.service) return;
     window.__serviceCalls = [];
@@ -233,12 +234,36 @@ async function checkOrder(browser, port) {
   await page.close();
 }
 
+async function checkLanguageMemory(browser, port) {
+  const active = (page) => page.getAttribute('.language-chip.active', 'data-language');
+  const stored = (page) => page.evaluate(() => localStorage.getItem('jiotvwebos.language.v2'));
+
+  // A chip choice survives a restart.
+  let page = await openApp(browser, port, [], { language: null });
+  assert.strictEqual(await active(page), 'telugu', 'Telugu by default');
+  await page.click('.language-chip[data-language="hindi"]');
+  assert.strictEqual(await stored(page), '"hindi"');
+  await page.reload(); await page.waitForTimeout(400);
+  assert.strictEqual(await active(page), 'hindi', 'Hindi is remembered after a restart');
+
+  // So does a rail choice.
+  await page.click('.rail-item[data-group="all"]');
+  await page.reload(); await page.waitForTimeout(400);
+  assert.strictEqual(await active(page), 'all', 'All is remembered after a restart');
+  await page.close();
+
+  // A value saved unquoted by builds up to 0.4.11 is still understood.
+  page = await openApp(browser, port, [], { language: 'english' });
+  assert.strictEqual(await active(page), 'english', 'old unquoted value is read');
+  await page.close();
+}
+
 (async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   try {
-    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView, checkOrder]) { await check(browser, port); console.log(`pass  ${check.name}`); }
+    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView, checkOrder, checkLanguageMemory]) { await check(browser, port); console.log(`pass  ${check.name}`); }
   } catch (error) {
     console.error(`FAIL  ${error.message}`); process.exitCode = 1;
   } finally { await browser.close(); server.close(); }
