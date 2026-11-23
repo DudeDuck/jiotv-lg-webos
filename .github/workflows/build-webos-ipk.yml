@@ -6,6 +6,7 @@ on:
       - '**'
     paths:
       - 'app.js'
+      - 'channel_order.js'
       - 'index.html'
       - 'styles.css'
       - 'appinfo.json'
@@ -19,6 +20,7 @@ on:
       - main
     paths:
       - 'app.js'
+      - 'channel_order.js'
       - 'index.html'
       - 'styles.css'
       - 'appinfo.json'
