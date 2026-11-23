@@ -22,3 +22,6 @@ device*.json
 Thumbs.db
 .vscode/
 .idea/
+
+# Local Claude Code notes
+CLAUDE.md
