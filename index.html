@@ -20,9 +20,10 @@
           <svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
           <input id="search" type="search" placeholder="Press OK to search" autocomplete="off" aria-label="Search channels; press OK to type" readonly aria-readonly="true">
         </label>
-        <button id="settings-open" class="settings-button" type="button" aria-label="Open connection settings">
-          <span class="settings-icon" aria-hidden="true">⚙</span><span>Settings</span>
+        <button id="settings-open" class="settings-button" type="button" aria-label="Settings" title="Settings">
+          <svg class="settings-icon" aria-hidden="true" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
+        <time id="clock" class="clock" aria-label="Current time"></time>
       </div>
     </header>
 
@@ -41,6 +42,16 @@
             <p class="eyebrow">YOUR ENTERTAINMENT</p>
             <div class="title-row"><h1 id="library-title">Telugu channels</h1><span id="channel-count" class="channel-count"></span></div>
             <p class="subheading">Browse with the arrows, or enter a channel ID with the number keys and press OK.</p>
+          </div>
+          <div class="view-switch" role="group" aria-label="Channel layout">
+            <button id="view-grid" class="view-button" type="button" data-view="grid" aria-pressed="true">
+              <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>
+              <span>Grid</span>
+            </button>
+            <button id="view-list" class="view-button" type="button" data-view="list" aria-pressed="false">
+              <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+              <span>List with guide</span>
+            </button>
           </div>
         </div>
         <div id="language-filter-row" class="language-filter-row" hidden>

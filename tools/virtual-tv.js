@@ -42,13 +42,45 @@ function serve() {
   });
 }
 
-async function openApp(browser, port, favorites) {
-  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-  await page.addInitScript(({ channels, favorites }) => {
+// Options: `time` fixes the clock (an ISO string), `signedIn` stores a dummy Jio sign-in,
+// and `service` replaces the TV service with a fake one that answers programme-guide
+// requests: half-hour slots for every channel, nothing for 142 and an error for 143.
+async function openApp(browser, port, favorites, options = {}) {
+  const page = await browser.newPage({
+    viewport: { width: 1920, height: 1080 }, deviceScaleFactor: shotsDir ? 2 : 1, timezoneId: 'Asia/Kolkata'
+  });
+  if (options.time) await page.clock.setFixedTime(new Date(options.time));
+  await page.addInitScript(({ channels, favorites, options }) => {
     localStorage.setItem('jiotvwebos.channels.v1', JSON.stringify(channels));
     localStorage.setItem('jiotvwebos.favorites.v1', JSON.stringify(favorites));
     localStorage.setItem('jiotvwebos.language.v2', JSON.stringify('telugu'));
-  }, { channels: sampleChannels(), favorites });
+    if (options.signedIn) localStorage.setItem('jiotvwebos.jio-auth.v1', JSON.stringify({ authToken: 'test-token', mobile: '9000000000' }));
+    if (!options.service) return;
+    window.__serviceCalls = [];
+    const slot = 30 * 60 * 1000;
+    const service = {
+      request(uri, request) {
+        window.__serviceCalls.push({ method: request.method, parameters: request.parameters || {} });
+        setTimeout(() => {
+          if (request.method === 'epg/get') {
+            const id = String(request.parameters.channelId);
+            if (id === '143') { request.onFailure({ errorText: 'Jio programme guide returned HTTP 500.' }); return; }
+            const first = Math.floor(Date.now() / slot) * slot - slot;
+            const programmes = id === '142' ? [] : [0, 1, 2, 3].map((i) => ({
+              startEpoch: first + i * slot, endEpoch: first + (i + 1) * slot, showname: `Programme ${id}-${i}`
+            }));
+            request.onSuccess({ returnValue: true, channelId: id, programmes });
+          } else if (request.method === 'library/getChannels') {
+            request.onFailure({ errorText: 'Offline in the virtual TV.' });
+          }
+          // proxy/start is left unanswered: playback cannot start without Jio.
+        }, 30);
+        return { cancel() {} };
+      }
+    };
+    // webOSTV.js assigns window.webOS when it loads; keep the fake in place.
+    Object.defineProperty(window, 'webOS', { configurable: true, get: () => ({ service }), set() {} });
+  }, { channels: sampleChannels(), favorites, options });
   page.on('pageerror', (error) => { throw error; });
   await page.goto(`http://127.0.0.1:${port}/index.html`);
   await page.waitForTimeout(500);
@@ -111,12 +143,83 @@ async function checkSaved(browser, port) {
   await page.close();
 }
 
+async function checkTopBar(browser, port) {
+  for (const [time, expected] of [['2026-11-23T00:30:00+05:30', '12:30 AM'], ['2026-11-23T12:00:00+05:30', '12:00 PM'], ['2026-11-23T19:05:00+05:30', '7:05 PM']]) {
+    const page = await openApp(browser, port, [], { time });
+    assert.strictEqual(await page.textContent('#clock'), expected, `clock at ${time}`);
+    if (expected === '7:05 PM') {
+      const settings = await page.$('#settings-open');
+      assert.strictEqual((await settings.innerText()).trim(), '', 'settings button shows no text');
+      assert.strictEqual(await settings.getAttribute('aria-label'), 'Settings');
+      assert.ok(await settings.$('svg'), 'settings button has a drawn gear icon');
+      const box = await settings.boundingBox();
+      assert.ok(box.width <= 64, `settings button is icon-sized (${box.width}px)`);
+      const clock = await (await page.$('#clock')).boundingBox();
+      assert.ok(clock.x > box.x && clock.x + clock.width > 1800, 'clock sits in the top right corner');
+      await page.focus('#settings-open');
+      await shot(page, 'top-bar.png');
+    }
+    await page.close();
+  }
+}
+
+async function checkListView(browser, port) {
+  const page = await openApp(browser, port, [], { time: '2026-11-23T19:05:00+05:30', signedIn: true, service: true });
+  const epgCalls = () => page.evaluate(() => window.__serviceCalls.filter((c) => c.method === 'epg/get').map((c) => c.parameters.channelId));
+  assert.deepStrictEqual(await epgCalls(), [], 'grid view does not fetch any guide');
+
+  // Up from the language chips reaches the layout switch; pick List with the remote.
+  await press(page, 'U');
+  assert.strictEqual(await focusName(page), 'view-grid');
+  await press(page, 'R');
+  assert.strictEqual(await focusName(page), 'view-list');
+  await press(page, 'OK');
+  assert.strictEqual(await focusName(page), 'view-list', 'focus stays on the switch');
+  assert.ok(await page.$('.channel-list.list-view'), 'list layout is on');
+  assert.strictEqual(await page.getAttribute('#view-list', 'aria-pressed'), 'true');
+  await page.waitForTimeout(600);
+
+  const row = (index) => page.$eval(`.channel-card[data-index="${index}"] .row-epg`, (el) => el.innerText.replace(/\s+/g, ' ').trim());
+  assert.strictEqual(await row(0), 'NOW7:00 PM – 7:30 PM Programme 140-1 NEXT7:30 PM Programme 140-2', 'row shows now and next');
+  assert.strictEqual(await row(2), 'No guide listing for this channel');
+  assert.strictEqual(await row(3), 'Guide unavailable right now');
+  const width = await page.$eval('.channel-card[data-index="0"] .row-epg-progress span', (el) => el.style.width);
+  assert.strictEqual(width, '16.7%', '5 of 30 minutes watched');
+
+  const firstCalls = await epgCalls();
+  assert.ok(firstCalls.length >= 3 && firstCalls.length < 8, `only rows on screen are fetched (${firstCalls.join(',')})`);
+  await shot(page, 'list-view.png');
+
+  // One column: Down walks the rows, Left opens the rail; rows further down load as they appear.
+  const steps = ['D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'L'];
+  const expected = ['lang:telugu', 'genre:News', 'card:0', 'card:1', 'card:2', 'card:3', 'card:4', 'card:5', 'card:6', 'card:7', 'rail:telugu'];
+  const seen = [];
+  for (const step of steps) { await press(page, step); seen.push(await focusName(page)); }
+  assert.deepStrictEqual(seen, expected, 'list d-pad focus trail');
+  await page.waitForTimeout(600);
+  const allCalls = await epgCalls();
+  assert.deepStrictEqual([...new Set(allCalls)].sort(), ['140', '141', '142', '143', '144', '145', '146', '147'], 'every row is fetched once scrolled to');
+  assert.strictEqual(allCalls.length, new Set(allCalls).size, 'no channel is fetched twice');
+
+  // The layout survives a restart.
+  await page.reload();
+  await page.waitForTimeout(400);
+  assert.ok(await page.$('.channel-list.list-view'), 'list layout is remembered');
+
+  // OK on a row tunes that channel.
+  await page.focus('.channel-card[data-index="1"]');
+  await press(page, 'OK');
+  assert.ok(await page.evaluate(() => document.body.classList.contains('playing')), 'OK on a row starts playback');
+  assert.strictEqual(await page.textContent('#now-title'), 'Zee Telugu HD');
+  await page.close();
+}
+
 (async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   try {
-    for (const check of [checkDpad, checkSaved]) { await check(browser, port); console.log(`pass  ${check.name}`); }
+    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView]) { await check(browser, port); console.log(`pass  ${check.name}`); }
   } catch (error) {
     console.error(`FAIL  ${error.message}`); process.exitCode = 1;
   } finally { await browser.close(); server.close(); }

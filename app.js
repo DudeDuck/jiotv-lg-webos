@@ -6,6 +6,12 @@
   const CHANNELS_KEY = 'jiotvwebos.channels.v1';
   const FAVORITES_KEY = 'jiotvwebos.favorites.v1';
   const LANGUAGE_KEY = 'jiotvwebos.language.v2';
+  const VIEW_KEY = 'jiotvwebos.view.v1';
+  // List view guide: refetch a channel's schedule after this long, wait this long after a
+  // failed or empty answer, and keep this many requests to the TV service in flight.
+  const ROW_EPG_FRESH_MS = 15 * 60 * 1000;
+  const ROW_EPG_RETRY_MS = 5 * 60 * 1000;
+  const ROW_EPG_PARALLEL = 3;
   const QUALITY_UPGRADE_STABLE_MS = 45000;
   const QUALITY_UPGRADE_COOLDOWN_MS = 60000;
   const PLAYER_CONTROLS_HIDE_MS = 4500;
@@ -18,7 +24,9 @@
     lastPlaybackTime: 0, lastProgressAt: 0, qualityStableSince: 0, lastQualityChangeAt: 0,
     qualityRecoveryTimer: null, controlsHideTimer: null, lowestQualityWarningShown: false, otpSent: false, userInteracted: false,
     dashPlayer: null, dashTracks: [],
-    programGuideVisible: false, epgProgrammes: [], epgCache: Object.create(null), epgRequestToken: 0, epgLoading: false, guideProgressTimer: null
+    programGuideVisible: false, epgProgrammes: [], epgCache: Object.create(null), epgRequestToken: 0, epgLoading: false, guideProgressTimer: null,
+    view: readStored(VIEW_KEY, 'grid') === 'list' ? 'list' : 'grid',
+    epgMissing: Object.create(null), epgQueue: [], epgInflight: new Set(), epgVisible: new Set(), epgObserver: null
   };
   const $ = (id) => document.getElementById(id);
   const elements = {
@@ -29,6 +37,7 @@
     playerView: $('player-view'), player: $('player'), playerPrompt: $('player-prompt'), playerError: $('player-error'), controls: $('player-controls'),
     channelCount: $('channel-count'), nowTitle: $('now-title'), qualityStatus: $('quality-status'), toast: $('toast'),
     tuneDisplay: $('tune-display'), tuneDigits: $('tune-digits'),
+    clock: $('clock'), viewGrid: $('view-grid'), viewList: $('view-list'),
     programGuide: $('program-guide'), guideChannel: $('guide-channel'), guideCurrentTitle: $('guide-current-title'),
     guideCurrentTime: $('guide-current-time'), guideCurrentDescription: $('guide-current-description'),
     guideProgress: $('guide-progress-fill'), guideProgressBar: $('guide-progress'), guideProgramList: $('guide-program-list'), guideStatus: $('guide-status')
@@ -122,6 +131,10 @@
     elements.channelCount.textContent = state.channels.length
       ? (hasFilters ? `${channels.length.toLocaleString()} results` : `${state.channels.length.toLocaleString()} channels`)
       : '';
+    const listView = state.view === 'list';
+    elements.list.classList.toggle('list-view', listView);
+    elements.viewGrid.setAttribute('aria-pressed', String(!listView));
+    elements.viewList.setAttribute('aria-pressed', String(listView));
     clearElement(elements.list);
     channels.forEach((channel, index) => {
       const card = document.createElement('button');
@@ -155,12 +168,19 @@
       channelId.setAttribute('aria-label', `Channel ID ${channel.id}`);
       meta.append(channelId, group); copy.append(title, meta);
       card.append(logo, copy);
+      if (listView) {
+        const epg = document.createElement('span');
+        epg.className = 'row-epg';
+        fillRowEpg(epg, channel.id);
+        card.append(epg);
+      }
       if (favorites.has(channel.id)) { const star = document.createElement('span'); star.className = 'favorite'; star.textContent = '★'; card.append(star); }
       card.addEventListener('focus', () => { state.selected = index; });
       card.addEventListener('click', () => play(channel));
       card.addEventListener('contextmenu', (event) => { event.preventDefault(); toggleFavorite(channel); });
       elements.list.append(card);
     });
+    observeRowEpg();
     const noChannels = channels.length === 0;
     elements.empty.classList.toggle('visible', noChannels);
     elements.list.hidden = noChannels;
@@ -647,8 +667,136 @@
     }).filter((item) => item.title && Number.isFinite(item.startMs) && Number.isFinite(item.endMs) && item.endMs > item.startMs)
       .sort((a, b) => a.startMs - b.startMs);
   }
-  function formatGuideTime(timestamp) {
-    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // 12-hour time in the TV's own time zone, e.g. "7:05 PM". Built by hand so it does
+  // not depend on the TV browser's locale data.
+  function formatClockTime(timestamp) {
+    const date = new Date(timestamp);
+    const hours = date.getHours();
+    return `${hours % 12 || 12}:${String(date.getMinutes()).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
+  }
+  function formatGuideTime(timestamp) { return formatClockTime(timestamp); }
+  function updateClock() {
+    elements.clock.textContent = formatClockTime(Date.now());
+    elements.clock.setAttribute('datetime', new Date().toISOString());
+  }
+  function startClock() {
+    updateClock();
+    // Wake just after each minute boundary so the clock never lags by up to a minute.
+    setTimeout(startClock, 60000 - (Date.now() % 60000) + 50);
+  }
+
+  // List view guide: each visible row shows what is on now and next. Schedules are fetched
+  // only for rows on screen, a few at a time, and shared with the player's Yellow guide.
+  function rowEpgNeedsFetch(id, now) {
+    if (state.epgInflight.has(id)) return false;
+    const missing = state.epgMissing[id];
+    if (missing && now - missing.at < ROW_EPG_RETRY_MS) return false;
+    const cached = state.epgCache[id];
+    return !cached || now - cached.fetchedAt > ROW_EPG_FRESH_MS || !cached.programmes.some((item) => item.endMs > now);
+  }
+  function queueRowEpg(id) {
+    if (state.epgQueue.includes(id) || !rowEpgNeedsFetch(id, Date.now())) return;
+    state.epgQueue.push(id);
+    pumpRowEpg();
+  }
+  function pumpRowEpg() {
+    while (state.epgInflight.size < ROW_EPG_PARALLEL && state.epgQueue.length) {
+      const id = state.epgQueue.shift();
+      if (!state.epgVisible.has(id) || !rowEpgNeedsFetch(id, Date.now())) continue;
+      state.epgInflight.add(id);
+      serviceCall('epg/get', { channelId: id, offset: 0 }).then((result) => {
+        const programmes = normalizeEpgProgrammes(result.programmes || result.epg || result.result);
+        if (programmes.length) state.epgCache[id] = { programmes, fetchedAt: Date.now() };
+        // Nothing airing now or later: wait before asking again rather than on every refresh.
+        if (!programmes.some((item) => item.endMs > Date.now())) state.epgMissing[id] = { at: Date.now(), reason: 'empty' };
+        else delete state.epgMissing[id];
+      }).catch(() => {
+        state.epgMissing[id] = { at: Date.now(), reason: 'error' };
+      }).finally(() => {
+        state.epgInflight.delete(id);
+        updateRowEpg(id);
+        pumpRowEpg();
+      });
+    }
+  }
+  function rowEpgSlot(kind, label, programme, now) {
+    const slot = document.createElement('span');
+    slot.className = `row-epg-slot row-epg-${kind}`;
+    const heading = document.createElement('span');
+    heading.className = 'row-epg-label';
+    heading.textContent = label;
+    const time = document.createElement('time');
+    time.textContent = kind === 'now'
+      ? `${formatClockTime(programme.startMs)} – ${formatClockTime(programme.endMs)}`
+      : formatClockTime(programme.startMs);
+    heading.append(time);
+    const title = document.createElement('span');
+    title.className = 'row-epg-title';
+    title.textContent = programme.title;
+    slot.append(heading, title);
+    if (kind === 'now') {
+      const bar = document.createElement('span');
+      bar.className = 'row-epg-progress';
+      const fill = document.createElement('span');
+      const progress = Math.max(0, Math.min(100, ((now - programme.startMs) / (programme.endMs - programme.startMs)) * 100));
+      fill.style.width = `${progress.toFixed(1)}%`;
+      bar.append(fill);
+      slot.append(bar);
+    }
+    return slot;
+  }
+  function fillRowEpg(element, id) {
+    const now = Date.now();
+    const programmes = state.epgCache[id] ? state.epgCache[id].programmes : [];
+    const current = programmes.find((item) => item.startMs <= now && item.endMs > now) || null;
+    const next = programmes.find((item) => item.startMs > now && item !== current) || null;
+    clearElement(element);
+    if (current) element.append(rowEpgSlot('now', 'NOW', current, now));
+    if (next) element.append(rowEpgSlot('next', 'NEXT', next, now));
+    if (current || next) return;
+    const missing = state.epgMissing[id];
+    const note = document.createElement('span');
+    note.className = 'row-epg-note';
+    note.textContent = !missing ? 'Loading guide…'
+      : (missing.reason === 'error' ? 'Guide unavailable right now' : 'No guide listing for this channel');
+    element.append(note);
+  }
+  function updateRowEpg(id) {
+    const card = elements.list.querySelector(`.channel-card[data-channel-id="${id}"]`);
+    const epg = card && card.querySelector('.row-epg');
+    if (epg) fillRowEpg(epg, id);
+  }
+  function observeRowEpg() {
+    if (state.epgObserver) state.epgObserver.disconnect();
+    state.epgObserver = null;
+    state.epgVisible.clear();
+    state.epgQueue.length = 0;
+    if (state.view !== 'list') return;
+    const cards = Array.from(elements.list.querySelectorAll('.channel-card'));
+    if (!('IntersectionObserver' in window)) {
+      cards.slice(0, 12).forEach((card) => { state.epgVisible.add(card.dataset.channelId); queueRowEpg(card.dataset.channelId); });
+      return;
+    }
+    state.epgObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const id = entry.target.dataset.channelId;
+        if (entry.isIntersecting) { state.epgVisible.add(id); updateRowEpg(id); queueRowEpg(id); }
+        else state.epgVisible.delete(id);
+      }
+    }, { root: elements.list, rootMargin: '150px 0px' });
+    cards.forEach((card) => state.epgObserver.observe(card));
+  }
+  // Keep visible rows current: move NOW/NEXT along and refetch schedules that ran out.
+  function refreshVisibleRowEpg() {
+    if (state.view !== 'list' || document.body.classList.contains('playing')) return;
+    for (const id of state.epgVisible) { updateRowEpg(id); queueRowEpg(id); }
+  }
+  function setView(view) {
+    if (state.view === view) return;
+    state.view = view === 'list' ? 'list' : 'grid';
+    try { localStorage.setItem(VIEW_KEY, JSON.stringify(state.view)); } catch (_) {}
+    state.selected = -1;
+    render();
   }
   function setGuideStatus(message) {
     elements.guideStatus.textContent = message || '';
@@ -829,13 +977,14 @@
     const pick = (root, selector) => root.hidden ? [] : Array.from(root.querySelectorAll(selector));
     return [
       [elements.search, $('settings-open')],
+      [elements.viewGrid, elements.viewList],
       pick(elements.languageFilterRow, '.language-chip'),
       pick(elements.groups, '.group-chip'),
       pick(elements.list, '.channel-card'),
       elements.empty.classList.contains('visible') && !$('settings-cta').hidden ? [$('settings-cta')] : []
     ].filter((row) => row.length);
   }
-  // Home screen d-pad: Up/Down step through rows (top bar, languages, genres, grid),
+  // Home screen d-pad: Up/Down step through rows (top bar, layout switch, languages, genres, channels),
   // Left/Right stay inside a row, and Left from a row's first item opens the rail.
   function moveHome(direction) {
     const current = document.activeElement;
@@ -914,6 +1063,10 @@
   }
 
   $('settings-open').addEventListener('click', openSettings);
+  elements.viewGrid.addEventListener('click', () => setView('grid'));
+  elements.viewList.addEventListener('click', () => setView('list'));
+  setInterval(refreshVisibleRowEpg, 30000);
+  startClock();
   $('settings-form').addEventListener('submit', (event) => event.preventDefault());
   $('settings-close').addEventListener('click', () => elements.dialog.close());
   $('settings-done').addEventListener('click', () => elements.dialog.close());
