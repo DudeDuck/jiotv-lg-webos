@@ -20,7 +20,7 @@ This source tree contains no account credentials, OTPs, access tokens, device ad
 - Channels come from Jio's current (v3.1) channel list only; the older list kept retired channels that no longer play.
 - Selecting the active category again clears only that category while retaining the selected language.
 - Remote-friendly navigation, direct channel-ID tuning, and a centered channel-ID overlay.
-- Press Red on a channel to add or remove it from Saved. Saved lists every saved channel, whatever its language.
+- Press Red on a channel to add or remove it from Saved. Saved lists every saved channel, whatever its language, with movie channels first.
 - **List with guide** layout: one channel per row showing what is on now (with progress) and next. Switch between Grid and List above the channel list; the choice is remembered.
 - 12-hour clock in the top-right corner.
 - Best-quality-first HLS playback with step-down on sustained buffering and gradual recovery after stable playback.

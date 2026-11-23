@@ -85,7 +85,16 @@
     return channels.slice().sort(compare);
   }
 
-  const api = { isVisible, sortTeluguFirst, HIDDEN_IDS, TELUGU_FIRST, TELUGU_NEWS, TELUGU_CHRISTIAN };
+  // A movie channel: Jio files it under Movies, or its name says Movie(s) or Cinema.
+  function isMovie(channel) {
+    return String(channel.group || '').trim().toLowerCase() === 'movies' || /\b(movies?|cinema)\b/i.test(String(channel.title || channel.name || ''));
+  }
+  // Saved: movie channels first, then the rest; each part in the order above.
+  function sortSaved(channels) {
+    return channels.slice().sort((a, b) => (isMovie(a) ? 0 : 1) - (isMovie(b) ? 0 : 1) || compare(a, b));
+  }
+
+  const api = { isVisible, isMovie, sortTeluguFirst, sortSaved, HIDDEN_IDS, TELUGU_FIRST, TELUGU_NEWS, TELUGU_CHRISTIAN };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.JioTVChannelOrder = api;
 })(this);

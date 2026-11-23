@@ -219,17 +219,17 @@ async function checkOrder(browser, port) {
   const channels = [
     ['618', 'TV9 Telugu', 'Telugu', 'News'], ['629', 'ETV Telugu', 'Telugu', 'Entertainment'], ['977', 'Calvary', 'Telugu', 'Devotional'],
     ['1112', 'Maa HD', 'Telugu', 'Entertainment'], ['1229', 'TEST9 HD', 'Telugu', 'Entertainment'], ['598', 'Sri Venkateshwar Bhakti', 'Telugu', 'Devotional'],
-    ['155', 'Colors HD', 'Hindi', 'Entertainment']
+    ['155', 'Colors HD', 'Hindi', 'Entertainment'], ['760', 'Maa Movies HD', 'Telugu', 'Movies'], ['200', 'Sony Max', 'Hindi', 'Movies']
   ].map(([id, title, language, group]) => ({ id, title, logo: '', group, language, isDrm: false }))
     .sort((a, b) => Number(a.id) - Number(b.id)); // the TV service delivers channels in ID order
-  const page = await openApp(browser, port, ['1112', '155', '977'], { channels });
+  const page = await openApp(browser, port, ['1112', '155', '977', '760', '200'], { channels });
   const titles = () => page.$$eval('.channel-card .channel-copy > strong', (nodes) => nodes.map((n) => n.textContent));
-  assert.deepStrictEqual(await titles(), ['Maa HD', 'Sri Venkateshwar Bhakti', 'ETV Telugu', 'TV9 Telugu', 'Calvary'], 'Telugu custom order, TEST9 hidden');
+  assert.deepStrictEqual(await titles(), ['Maa HD', 'Maa Movies HD', 'Sri Venkateshwar Bhakti', 'ETV Telugu', 'TV9 Telugu', 'Calvary'], 'Telugu custom order, TEST9 hidden');
   await shot(page, 'telugu-order.png');
   await page.click('.rail-item[data-group="all"]');
-  assert.deepStrictEqual(await titles(), ['Colors HD', 'Sri Venkateshwar Bhakti', 'TV9 Telugu', 'ETV Telugu', 'Calvary', 'Maa HD'], 'All stays in ID order');
+  assert.deepStrictEqual(await titles(), ['Colors HD', 'Sony Max', 'Sri Venkateshwar Bhakti', 'TV9 Telugu', 'ETV Telugu', 'Maa Movies HD', 'Calvary', 'Maa HD'], 'All stays in ID order');
   await page.click('.rail-item[data-group="favorites"]');
-  assert.deepStrictEqual(await titles(), ['Maa HD', 'Calvary', 'Colors HD'], 'Saved: Telugu order first, then other languages');
+  assert.deepStrictEqual(await titles(), ['Maa Movies HD', 'Sony Max', 'Maa HD', 'Calvary', 'Colors HD'], 'Saved: movie channels first, then the rest');
   await page.close();
 }
 

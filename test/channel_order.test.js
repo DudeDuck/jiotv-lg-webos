@@ -49,3 +49,26 @@ test('other languages follow the Telugu channels in ID order', () => {
   ]));
   assert.deepStrictEqual(list, ['1112', '646', '100', '500']);
 });
+
+test('movie channels are recognised by Jio category or by name', () => {
+  for (const channel of [{ title: 'Maa Movies HD' }, { title: 'ETV Cinema HD' }, { title: 'Sun Gemini Movies HD' }, { title: 'Sony Max', group: 'Movies' }]) {
+    assert.ok(order.isMovie(channel), channel.title);
+  }
+  for (const channel of [{ title: 'Maa HD', group: 'Entertainment' }, { title: 'TV9 Telugu', group: 'News' }, { title: 'Cinematic Sports' }]) {
+    assert.ok(!order.isMovie(channel), channel.title);
+  }
+});
+
+test('Saved lists movie channels first, then the rest, each in the usual order', () => {
+  const saved = [
+    { id: '155', title: 'Colors HD', language: 'Hindi', group: 'Entertainment' },
+    { id: '977', title: 'Calvary', language: 'Telugu' },
+    { id: '200', title: 'Sony Max', language: 'Hindi', group: 'Movies' },
+    { id: '252', title: 'ETV Cinema', language: 'Telugu' },
+    { id: '1112', title: 'Maa HD', language: 'Telugu' },
+    { id: '618', title: 'TV9 Telugu', language: 'Telugu', group: 'News' },
+    { id: '760', title: 'Maa Movies HD', language: 'Telugu', group: 'Movies' }
+  ];
+  assert.deepStrictEqual(order.sortSaved(saved).map((c) => c.title),
+    ['Maa Movies HD', 'ETV Cinema', 'Sony Max', 'Maa HD', 'TV9 Telugu', 'Calvary', 'Colors HD']);
+});

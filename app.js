@@ -78,9 +78,11 @@
   }
   function orderChannels(channels) {
     const order = window.JioTVChannelOrder;
-    // Telugu view and Saved use the custom Telugu order; other views stay in channel-ID order.
-    const custom = state.group === 'favorites' || state.language === 'telugu';
-    return order && custom ? order.sortTeluguFirst(channels) : channels;
+    // Saved: movie channels first, then the rest. Telugu view: the custom Telugu order.
+    // Other views stay in channel-ID order.
+    if (!order) return channels;
+    if (state.group === 'favorites') return order.sortSaved(channels);
+    return state.language === 'telugu' ? order.sortTeluguFirst(channels) : channels;
   }
   function normalizeChannels(channels) {
     return (channels || []).map((channel) => ({
