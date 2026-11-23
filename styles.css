@@ -129,6 +129,11 @@ body.player-controls-hidden .player-controls { opacity: 0; }
 .now-playing-copy small { color: #b3bac1; font-size: 20px; font-weight: 500; }
 .live-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: #f0643c; box-shadow: 0 0 13px #f0643c; }
 .play-button { min-width: 68px; justify-content: center; font-size: 26px; }
+.quality-picker { position: relative; margin-left: auto; }
+.quality-menu { position: absolute; right: 0; bottom: calc(100% + 12px); min-width: 280px; display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid #ffffff38; border-radius: 14px; background: #0b0e11f2; }
+.quality-option { min-height: 60px; padding: 0 22px; border: 1px solid transparent; border-radius: 9px; background: none; color: #d7dce0; font-size: 22px; font-weight: 600; text-align: left; white-space: nowrap; cursor: pointer; }
+.quality-option[aria-checked="true"] { color: #fff; font-weight: 800; box-shadow: inset 5px 0 0 #ff9877; }
+.quality-option:focus { border-color: #ff9877; background: #242a30e8; color: #fff; outline: none; }
 
 dialog { width: min(860px, 90vw); max-height: 88vh; overflow-y: auto; border: 1px solid #ffffff20; border-radius: 18px; padding: 0; background: #171c22; color: var(--text); box-shadow: 0 25px 100px #000c; }
 dialog::backdrop { background: #000b; }

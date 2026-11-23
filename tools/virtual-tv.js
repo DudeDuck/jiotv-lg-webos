@@ -16,7 +16,7 @@ const assert = require('node:assert');
 
 const root = path.join(__dirname, '..');
 const shotsDir = process.argv.includes('--shots') ? process.argv[process.argv.indexOf('--shots') + 1] : '';
-const KEYS = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight', OK: 'Enter' };
+const KEYS = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight', OK: 'Enter', BACK: 'Escape' };
 const RED = 403;
 
 const SAMPLE = {
@@ -45,6 +45,7 @@ function serve() {
 // Options: `time` fixes the clock (an ISO string), `signedIn` stores a dummy Jio sign-in,
 // and `service` replaces the TV service with a fake one that answers programme-guide
 // requests: half-hour slots for every channel, nothing for 144 and an error for 143.
+// `stream` (with `service`) also starts playback of a 3-level HLS stream whose URLs 404.
 async function openApp(browser, port, favorites, options = {}) {
   const page = await browser.newPage({
     viewport: { width: 1920, height: 1080 }, deviceScaleFactor: shotsDir ? 2 : 1, timezoneId: 'Asia/Kolkata'
@@ -73,8 +74,14 @@ async function openApp(browser, port, favorites, options = {}) {
             request.onSuccess({ returnValue: true, channelId: id, programmes });
           } else if (request.method === 'library/getChannels') {
             request.onFailure({ errorText: 'Offline in the virtual TV.' });
+          } else if (options.stream && request.method === 'proxy/start') {
+            request.onSuccess({ returnValue: true, baseUrl: `${location.origin}/no-stream` });
+          } else if (options.stream && request.method === 'proxy/resolve') {
+            request.onSuccess({ returnValue: true, mode: 'hls', levels: [
+              { height: 1080, bandwidth: 5000000 }, { height: 720, bandwidth: 3200000 }, { height: 480, bandwidth: 1400000 }
+            ] });
           }
-          // proxy/start is left unanswered: playback cannot start without Jio.
+          // Without `stream`, proxy/start is left unanswered: playback cannot start without Jio.
         }, 30);
         return { cancel() {} };
       }
@@ -258,12 +265,54 @@ async function checkLanguageMemory(browser, port) {
   await page.close();
 }
 
+async function checkQuality(browser, port) {
+  const page = await openApp(browser, port, [], { signedIn: true, service: true, stream: true });
+  const button = () => page.textContent('#quality-button');
+  const level = () => page.evaluate(() => new URL(document.getElementById('player').src).searchParams.get('level'));
+  const menuOpen = () => page.evaluate(() => !document.getElementById('quality-menu').hidden);
+  await page.focus('.channel-card[data-index="0"]');
+  await press(page, 'OK');
+  await page.waitForTimeout(300);
+  assert.strictEqual(await button(), 'Quality: Auto', 'a channel starts on Auto');
+  assert.strictEqual(await level(), '0', 'Auto starts at the best level');
+
+  // Left from play/pause reaches Quality; OK opens the menu on the current choice.
+  await press(page, 'L');
+  assert.strictEqual(await focusName(page), 'quality-button');
+  await press(page, 'OK');
+  const options = await page.$$eval('.quality-option', (nodes) => nodes.map((n) => n.textContent));
+  assert.deepStrictEqual(options, ['Auto', '1080p · 5.0 Mbps', '720p · 3.2 Mbps', '480p · 1.4 Mbps']);
+  assert.strictEqual(await page.evaluate(() => document.activeElement.textContent), 'Auto', 'focus starts on the current choice');
+  await shot(page, 'quality-menu.png');
+
+  // Pin 720p with the remote.
+  await press(page, 'D'); await press(page, 'D'); await press(page, 'OK');
+  assert.strictEqual(await menuOpen(), false, 'menu closes after a choice');
+  assert.strictEqual(await focusName(page), 'quality-button');
+  assert.strictEqual(await button(), 'Quality: 720p');
+  assert.strictEqual(await level(), '1', 'the 720p stream is loaded');
+
+  // Back closes the menu without leaving the channel.
+  await press(page, 'OK');
+  assert.strictEqual(await page.evaluate(() => document.activeElement.textContent), '720p · 3.2 Mbps');
+  await press(page, 'BACK');
+  assert.strictEqual(await menuOpen(), false, 'Back closes the menu');
+  assert.ok(await page.evaluate(() => document.body.classList.contains('playing')), 'still on the channel');
+
+  // A stream failure after the grace period steps down and hands control back to Auto.
+  await page.waitForTimeout(2700);
+  await page.evaluate(() => document.getElementById('player').dispatchEvent(new Event('error')));
+  assert.strictEqual(await button(), 'Quality: Auto', 'an automatic step-down ends the pinned choice');
+  assert.strictEqual(await level(), '2', 'dropped one level to 480p');
+  await page.close();
+}
+
 (async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   try {
-    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView, checkOrder, checkLanguageMemory]) { await check(browser, port); console.log(`pass  ${check.name}`); }
+    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView, checkOrder, checkLanguageMemory, checkQuality]) { await check(browser, port); console.log(`pass  ${check.name}`); }
   } catch (error) {
     console.error(`FAIL  ${error.message}`); process.exitCode = 1;
   } finally { await browser.close(); server.close(); }
