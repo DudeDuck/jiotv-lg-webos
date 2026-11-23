@@ -44,7 +44,7 @@ function serve() {
 
 // Options: `time` fixes the clock (an ISO string), `signedIn` stores a dummy Jio sign-in,
 // and `service` replaces the TV service with a fake one that answers programme-guide
-// requests: half-hour slots for every channel, nothing for 142 and an error for 143.
+// requests: half-hour slots for every channel, nothing for 144 and an error for 143.
 async function openApp(browser, port, favorites, options = {}) {
   const page = await browser.newPage({
     viewport: { width: 1920, height: 1080 }, deviceScaleFactor: shotsDir ? 2 : 1, timezoneId: 'Asia/Kolkata'
@@ -66,7 +66,7 @@ async function openApp(browser, port, favorites, options = {}) {
             const id = String(request.parameters.channelId);
             if (id === '143') { request.onFailure({ errorText: 'Jio programme guide returned HTTP 500.' }); return; }
             const first = Math.floor(Date.now() / slot) * slot - slot;
-            const programmes = id === '142' ? [] : [0, 1, 2, 3].map((i) => ({
+            const programmes = id === '144' ? [] : [0, 1, 2, 3].map((i) => ({
               startEpoch: first + i * slot, endEpoch: first + (i + 1) * slot, showname: `Programme ${id}-${i}`
             }));
             request.onSuccess({ returnValue: true, channelId: id, programmes });
@@ -80,7 +80,7 @@ async function openApp(browser, port, favorites, options = {}) {
     };
     // webOSTV.js assigns window.webOS when it loads; keep the fake in place.
     Object.defineProperty(window, 'webOS', { configurable: true, get: () => ({ service }), set() {} });
-  }, { channels: sampleChannels(), favorites, options });
+  }, { channels: options.channels || sampleChannels(), favorites, options });
   page.on('pageerror', (error) => { throw error; });
   await page.goto(`http://127.0.0.1:${port}/index.html`);
   await page.waitForTimeout(500);
@@ -179,11 +179,11 @@ async function checkListView(browser, port) {
   assert.strictEqual(await page.getAttribute('#view-list', 'aria-pressed'), 'true');
   await page.waitForTimeout(600);
 
-  const row = (index) => page.$eval(`.channel-card[data-index="${index}"] .row-epg`, (el) => el.innerText.replace(/\s+/g, ' ').trim());
-  assert.strictEqual(await row(0), 'NOW7:00 PM – 7:30 PM Programme 140-1 NEXT7:30 PM Programme 140-2', 'row shows now and next');
-  assert.strictEqual(await row(2), 'No guide listing for this channel');
-  assert.strictEqual(await row(3), 'Guide unavailable right now');
-  const width = await page.$eval('.channel-card[data-index="0"] .row-epg-progress span', (el) => el.style.width);
+  const row = (id) => page.$eval(`.channel-card[data-channel-id="${id}"] .row-epg`, (el) => el.innerText.replace(/\s+/g, ' ').trim());
+  assert.strictEqual(await row(140), 'NOW7:00 PM – 7:30 PM Programme 140-1 NEXT7:30 PM Programme 140-2', 'row shows now and next');
+  assert.strictEqual(await row(144), 'No guide listing for this channel');
+  assert.strictEqual(await row(143), 'Guide unavailable right now');
+  const width = await page.$eval('.channel-card[data-channel-id="140"] .row-epg-progress span', (el) => el.style.width);
   assert.strictEqual(width, '16.7%', '5 of 30 minutes watched');
 
   const firstCalls = await epgCalls();
@@ -214,12 +214,31 @@ async function checkListView(browser, port) {
   await page.close();
 }
 
+async function checkOrder(browser, port) {
+  // Real Jio IDs: Telugu popular, news, Christian and the TEST9 test channel, plus one Hindi channel.
+  const channels = [
+    ['618', 'TV9 Telugu', 'Telugu', 'News'], ['629', 'ETV Telugu', 'Telugu', 'Entertainment'], ['977', 'Calvary', 'Telugu', 'Devotional'],
+    ['1112', 'Maa HD', 'Telugu', 'Entertainment'], ['1229', 'TEST9 HD', 'Telugu', 'Entertainment'], ['598', 'Sri Venkateshwar Bhakti', 'Telugu', 'Devotional'],
+    ['155', 'Colors HD', 'Hindi', 'Entertainment']
+  ].map(([id, title, language, group]) => ({ id, title, logo: '', group, language, isDrm: false }))
+    .sort((a, b) => Number(a.id) - Number(b.id)); // the TV service delivers channels in ID order
+  const page = await openApp(browser, port, ['1112', '155', '977'], { channels });
+  const titles = () => page.$$eval('.channel-card .channel-copy > strong', (nodes) => nodes.map((n) => n.textContent));
+  assert.deepStrictEqual(await titles(), ['Maa HD', 'Sri Venkateshwar Bhakti', 'ETV Telugu', 'TV9 Telugu', 'Calvary'], 'Telugu custom order, TEST9 hidden');
+  await shot(page, 'telugu-order.png');
+  await page.click('.rail-item[data-group="all"]');
+  assert.deepStrictEqual(await titles(), ['Colors HD', 'Sri Venkateshwar Bhakti', 'TV9 Telugu', 'ETV Telugu', 'Calvary', 'Maa HD'], 'All stays in ID order');
+  await page.click('.rail-item[data-group="favorites"]');
+  assert.deepStrictEqual(await titles(), ['Maa HD', 'Calvary', 'Colors HD'], 'Saved: Telugu order first, then other languages');
+  await page.close();
+}
+
 (async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   try {
-    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView]) { await check(browser, port); console.log(`pass  ${check.name}`); }
+    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView, checkOrder]) { await check(browser, port); console.log(`pass  ${check.name}`); }
   } catch (error) {
     console.error(`FAIL  ${error.message}`); process.exitCode = 1;
   } finally { await browser.close(); server.close(); }

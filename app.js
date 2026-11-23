@@ -16,7 +16,7 @@
   const QUALITY_UPGRADE_COOLDOWN_MS = 60000;
   const PLAYER_CONTROLS_HIDE_MS = 4500;
   const state = {
-    channels: readStored(CHANNELS_KEY, []), group: 'all', language: readStored(LANGUAGE_KEY, 'telugu'), selected: -1,
+    channels: visibleChannels(readStored(CHANNELS_KEY, [])), group: 'all', language: readStored(LANGUAGE_KEY, 'telugu'), selected: -1,
     tuneBuffer: '', tuneTimer: null,
     active: null, auth: readStored(AUTH_KEY, null), proxyBaseUrl: '', proxyRequest: null,
     proxyPromise: null, loading: false, qualityLevels: null, qualityIndex: 0,
@@ -71,6 +71,17 @@
     else localStorage.removeItem(AUTH_KEY);
     updateAccountUI();
   }
+  // Ordering rules live in channel_order.js; without it, show everything in ID order.
+  function visibleChannels(channels) {
+    const order = window.JioTVChannelOrder;
+    return Array.isArray(channels) ? (order ? channels.filter(order.isVisible) : channels) : [];
+  }
+  function orderChannels(channels) {
+    const order = window.JioTVChannelOrder;
+    // Telugu view and Saved use the custom Telugu order; other views stay in channel-ID order.
+    const custom = state.group === 'favorites' || state.language === 'telugu';
+    return order && custom ? order.sortTeluguFirst(channels) : channels;
+  }
   function normalizeChannels(channels) {
     return (channels || []).map((channel) => ({
       id: String(channel.id), title: channel.name || 'Unknown channel', logo: channel.logoUrl || '',
@@ -94,12 +105,12 @@
   function filteredChannels() {
     const query = elements.search.value.trim().toLocaleLowerCase();
     const favorites = new Set(readStored(FAVORITES_KEY, []));
-    return state.channels.filter((channel) => {
+    return orderChannels(state.channels.filter((channel) => {
       const matchesGroup = state.group === 'all' || (state.group === 'favorites' ? favorites.has(channel.id) : channel.group === state.group);
       const matchesQuery = !query || `${channel.title} ${channel.group} ${channel.language}`.toLocaleLowerCase().includes(query);
       const matchesLanguage = state.group === 'favorites' || state.language === 'all' || languageKey(channel.language) === state.language;
       return matchesGroup && matchesQuery && matchesLanguage;
-    });
+    }));
   }
   function setConnection(label, connected) {
     elements.connection.textContent = label;
@@ -236,7 +247,7 @@
     state.loading = true; render(); setConnection(state.auth ? 'Connecting to Jio…' : 'Loading Jio channels…', false);
     try {
       const result = await serviceCall('library/getChannels', {});
-      state.channels = normalizeChannels(result.channels);
+      state.channels = visibleChannels(normalizeChannels(result.channels));
       localStorage.setItem(CHANNELS_KEY, JSON.stringify(state.channels));
       state.group = 'all';
       if (state.language !== 'all' && !state.channels.some((channel) => languageKey(channel.language) === state.language)) {

@@ -16,6 +16,8 @@ This source tree contains no account credentials, OTPs, access tokens, device ad
 
 - Jio account sign-in from the TV with a one-time password.
 - Telugu as the default language filter, followed by Hindi, English, Bengali and the rest.
+- Telugu channels in a custom order: popular and HD channels first, then devotional, then the rest, with news and then Christian channels at the end (edit `channel_order.js` to change it). Other languages are in channel-ID order.
+- Channels come from Jio's current (v3.1) channel list only; the older list kept retired channels that no longer play.
 - Selecting the active category again clears only that category while retaining the selected language.
 - Remote-friendly navigation, direct channel-ID tuning, and a centered channel-ID overlay.
 - Press Red on a channel to add or remove it from Saved. Saved lists every saved channel, whatever its language.
