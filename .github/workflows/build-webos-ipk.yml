@@ -6,6 +6,7 @@ on:
       - '**'
     paths:
       - 'app.js'
+      - 'channel_order.js'
       - 'index.html'
       - 'styles.css'
       - 'appinfo.json'
@@ -19,6 +20,7 @@ on:
       - main
     paths:
       - 'app.js'
+      - 'channel_order.js'
       - 'index.html'
       - 'styles.css'
       - 'appinfo.json'
@@ -39,12 +41,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out commit under test
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
 
@@ -76,7 +78,7 @@ jobs:
           echo "IPK_PATH=${packages[0]}" >> "$GITHUB_ENV"
 
       - name: Upload installable IPK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: jiotvwebos-ipk
           path: dist/*.ipk

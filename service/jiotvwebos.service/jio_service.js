@@ -224,8 +224,9 @@ function getChannels() {
       if (response.status >= 200 && response.status < 300) categoryMap = response.json.channelCategoryMapping || {};
     }).catch(function() {})
     .then(function() {
+      // Only v3.1: the older v1.4 list still carries channels Jio has retired, which then fail to play.
+      // If v3.1 fails, the app keeps showing its last saved list rather than falling back to v1.4.
       var urls = [
-        "https://jiotvapi.cdn.jio.com/apis/v1.4/getMobileChannelList/get/?langId=6&devicetype=phone&os=android&usertype=JIO&version=422",
         "https://jiotvapi.cdn.jio.com/apis/v3.1/getMobileChannelList/get/?langId=6&os=android&devicetype=phone&usertype=JIO&version=422"
       ];
       return urls.reduce(function(chain, url) {
