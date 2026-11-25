@@ -2,10 +2,10 @@
 var Service = require("webos-service");
 var https = require("https");
 var http = require("http");
-var dns = require("dns");
 var crypto = require("crypto");
 var zlib = require("zlib");
 var URL = require("url").URL;
+var lookupIpv4 = require("./ipv4_lookup").lookupIpv4;
 var hostUtils = require("./host_policy");
 var hlsUtils = require("./hls_utils");
 var sanitizeWebOsHlsManifest = hlsUtils.sanitizeWebOsHlsManifest;
@@ -34,10 +34,6 @@ var streamCache = {};
 var streamRefreshes = {};
 var streamModes = {};
 
-function lookupIpv4(hostname, options, callback) {
-  if (typeof options === "function") callback = options;
-  dns.lookup(hostname, { family: 4 }, callback);
-}
 
 function uuid() {
   var b = crypto.randomBytes(16);
