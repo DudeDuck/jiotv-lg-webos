@@ -34,6 +34,7 @@
         <button class="rail-item" data-group="all" type="button"><span class="rail-icon">▦</span><span>All</span></button>
         <button class="rail-item" data-group="favorites" type="button"><span class="rail-icon favorite-icon">★</span><span>Saved</span></button>
         <div class="rail-note"><span class="rail-dot"></span><span>Live TV</span></div>
+        <p id="app-version" class="app-version" aria-live="polite"></p>
       </aside>
 
       <section class="library" aria-label="Channels">
@@ -80,6 +81,10 @@
         <div id="player-controls" class="player-controls" hidden>
           <button id="back-library" class="control-button" type="button"><span aria-hidden="true">‹</span> Channels</button>
           <div class="now-playing"><span class="live-dot"></span><div class="now-playing-copy"><span id="now-title">Choose a channel</span><small id="quality-status">Best available</small></div></div>
+          <div class="quality-picker">
+            <div id="quality-menu" class="quality-menu" role="menu" aria-label="Stream quality" hidden></div>
+            <button id="quality-button" class="control-button" type="button" aria-haspopup="menu" aria-expanded="false">Quality: Auto</button>
+          </div>
           <button id="play-toggle" class="control-button play-button" type="button" aria-label="Pause playback">Ⅱ</button>
         </div>
         <section id="program-guide" class="program-guide" role="region" aria-label="Programme information" aria-hidden="true" hidden>
