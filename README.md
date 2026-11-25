@@ -24,6 +24,7 @@ This source tree contains no account credentials, OTPs, access tokens, device ad
 - **List with guide** layout: one channel per row showing what is on now (with progress) and next. Switch between Grid and List above the channel list; the choice is remembered.
 - 12-hour clock in the top-right corner.
 - Best-quality-first HLS playback with step-down on sustained buffering and gradual recovery after stable playback.
+- **Quality** menu in the player bar: stay on Auto or pick a fixed level. A fixed level that keeps buffering drops a step and returns to Auto.
 - DASH playback when supported by the TV, with a same-channel HLS retry when appropriate.
 
 ## Build

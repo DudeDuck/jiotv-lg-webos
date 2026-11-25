@@ -19,7 +19,7 @@
     channels: visibleChannels(readStored(CHANNELS_KEY, [])), group: 'all', language: readLanguage(), selected: -1,
     tuneBuffer: '', tuneTimer: null,
     active: null, auth: readStored(AUTH_KEY, null), proxyBaseUrl: '', proxyRequest: null,
-    proxyPromise: null, loading: false, qualityLevels: null, qualityIndex: 0,
+    proxyPromise: null, loading: false, qualityLevels: null, qualityIndex: 0, qualityAuto: true,
     playbackToken: 0, playbackMode: '', hlsRetryTried: false, stallSince: 0, stallTimer: null, ignoreStallsUntil: 0,
     lastPlaybackTime: 0, lastProgressAt: 0, qualityStableSince: 0, lastQualityChangeAt: 0,
     qualityRecoveryTimer: null, controlsHideTimer: null, lowestQualityWarningShown: false, otpSent: false, userInteracted: false,
@@ -36,6 +36,7 @@
     signedIn: $('signed-in'), loginFields: $('login-fields'), settingsMessage: $('settings-message'),
     playerView: $('player-view'), player: $('player'), playerPrompt: $('player-prompt'), playerError: $('player-error'), controls: $('player-controls'),
     channelCount: $('channel-count'), nowTitle: $('now-title'), qualityStatus: $('quality-status'), toast: $('toast'),
+    qualityButton: $('quality-button'), qualityMenu: $('quality-menu'),
     tuneDisplay: $('tune-display'), tuneDigits: $('tune-digits'),
     clock: $('clock'), viewGrid: $('view-grid'), viewList: $('view-list'),
     programGuide: $('program-guide'), guideChannel: $('guide-channel'), guideCurrentTitle: $('guide-current-title'),
@@ -337,7 +338,7 @@
     if (!autoHide || !state.active || elements.player.paused || elements.player.ended) return;
     state.controlsHideTimer = setTimeout(() => {
       state.controlsHideTimer = null;
-      if (!state.active || elements.player.paused || elements.player.ended || !elements.playerError.hidden) return;
+      if (!state.active || elements.player.paused || elements.player.ended || !elements.playerError.hidden || !elements.qualityMenu.hidden) return;
       document.body.classList.add('player-controls-hidden');
       elements.controls.setAttribute('aria-hidden', 'true');
     }, PLAYER_CONTROLS_HIDE_MS);
@@ -398,6 +399,38 @@
   function qualityLabel(index) {
     const level = state.qualityLevels && state.qualityLevels[index];
     return level && level.height ? `${level.height}p` : (index ? 'Lower quality' : 'Best available');
+  }
+  function updateQualityButton() {
+    elements.qualityButton.textContent = `Quality: ${state.qualityAuto ? 'Auto' : qualityLabel(state.qualityIndex)}`;
+  }
+  function closeQualityMenu() {
+    elements.qualityMenu.hidden = true;
+    elements.qualityButton.setAttribute('aria-expanded', 'false');
+  }
+  /** Lists Auto plus every level of the current stream; level -1 means Auto. */
+  function openQualityMenu() {
+    clearElement(elements.qualityMenu);
+    for (const index of [-1, ...(state.qualityLevels || []).keys()]) {
+      const level = state.qualityLevels && state.qualityLevels[index];
+      const rate = level && level.bandwidth ? ` · ${(level.bandwidth / 1e6).toFixed(1)} Mbps` : '';
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'quality-option'; button.setAttribute('role', 'menuitemradio');
+      button.textContent = index < 0 ? 'Auto' : qualityLabel(index) + rate;
+      button.setAttribute('aria-checked', String(index < 0 ? state.qualityAuto : !state.qualityAuto && index === state.qualityIndex));
+      button.addEventListener('click', () => chooseQuality(index));
+      elements.qualityMenu.append(button);
+    }
+    elements.qualityMenu.hidden = false;
+    elements.qualityButton.setAttribute('aria-expanded', 'true');
+    (elements.qualityMenu.querySelector('[aria-checked="true"]') || elements.qualityMenu.firstChild).focus();
+  }
+  /** Pins a level, or returns to Auto (index -1) from whatever level is playing. */
+  function chooseQuality(index) {
+    closeQualityMenu(); elements.qualityButton.focus();
+    state.qualityAuto = index < 0;
+    if (index >= 0 && index !== state.qualityIndex) setQualitySource(index, false, false);
+    updateQualityButton();
+    showToast(state.qualityAuto ? 'Quality: Auto' : `Quality set to ${qualityLabel(index)}`);
   }
   async function destroyDashPlayer() {
     const player = state.dashPlayer;
@@ -537,6 +570,7 @@
     await destroyDashPlayer();
     state.playbackMode = ''; state.hlsRetryTried = false;
     clearStallMonitor(); clearQualityRecovery(); state.qualityLevels = null; state.qualityIndex = 0;
+    state.qualityAuto = true; updateQualityButton(); closeQualityMenu();
     state.lastPlaybackTime = 0; state.lowestQualityWarningShown = false;
     elements.playerError.hidden = true; elements.player.pause(); elements.player.removeAttribute('src'); elements.player.load();
     elements.playerPrompt.hidden = false; elements.controls.hidden = false; revealPlayerControls(false);
@@ -572,11 +606,14 @@
     if (!state.active || !state.proxyBaseUrl) return;
     const player = elements.player;
     const resume = startPlayback || (!player.paused && !player.ended);
-    const movingUp = level < state.qualityIndex;
+    const movingUp = state.qualityAuto && level < state.qualityIndex;
     clearStallMonitor(); state.qualityIndex = level; state.lastPlaybackTime = 0;
     state.lastProgressAt = Date.now(); state.qualityStableSince = 0; state.lastQualityChangeAt = Date.now();
     state.ignoreStallsUntil = Date.now() + 2500;
     elements.qualityStatus.textContent = qualityLabel(level);
+    // Any automatic step-down (buffering or a stream error) ends a pinned choice.
+    if (fallback) state.qualityAuto = true;
+    updateQualityButton();
     if (state.dashPlayer) {
       const track = state.dashTracks[level];
       if (track) state.dashPlayer.selectVariantTrack(track, true);
@@ -594,7 +631,7 @@
     if (state.qualityRecoveryTimer) return;
     state.qualityRecoveryTimer = setInterval(() => {
       const player = elements.player;
-      if (!state.active || player.paused || player.ended || !state.qualityLevels || state.qualityIndex <= 0) {
+      if (!state.active || !state.qualityAuto || player.paused || player.ended || !state.qualityLevels || state.qualityIndex <= 0) {
         state.qualityStableSince = 0;
         return;
       }
@@ -944,7 +981,7 @@
   }
 
   function stopPlayback() {
-    closeProgramGuide();
+    closeProgramGuide(); closeQualityMenu();
     clearPlayerControlsTimer(); document.body.classList.remove('player-controls-hidden');
     state.playbackToken++; state.playbackMode = ''; state.hlsRetryTried = false; clearStallMonitor(); clearQualityRecovery(); state.qualityLevels = null; state.qualityIndex = 0;
     const previousChannelId = state.active && state.active.id;
@@ -1116,6 +1153,7 @@
     if (state.active) stopPlayback();
   });
   $('back-library').addEventListener('click', stopPlayback);
+  elements.qualityButton.addEventListener('click', () => (elements.qualityMenu.hidden ? openQualityMenu() : closeQualityMenu()));
   $('play-toggle').addEventListener('click', () => elements.player.paused ? elements.player.play().catch(() => {}) : elements.player.pause());
   elements.player.addEventListener('playing', () => {
     elements.playerError.hidden = true; $('play-toggle').textContent = 'Ⅱ'; $('play-toggle').setAttribute('aria-label', 'Pause playback');
@@ -1151,7 +1189,7 @@
       event.preventDefault(); toggleFavorite(state.channels.find((channel) => channel.id === event.target.dataset.channelId)); return;
     }
     if (state.active && isYellowButton(event)) {
-      event.preventDefault();
+      event.preventDefault(); closeQualityMenu();
       toggleProgramGuide();
       return;
     }
@@ -1176,6 +1214,7 @@
     }
     const backPressed = event.keyCode === 461 || event.key === 'Escape' || (event.key === 'Backspace' && !editable);
     if (backPressed) {
+      if (!elements.qualityMenu.hidden) { closeQualityMenu(); elements.qualityButton.focus(); event.preventDefault(); return; }
       if (state.programGuideVisible) { closeProgramGuide(); event.preventDefault(); return; }
       if (state.tuneBuffer) { clearTuneBuffer(); event.preventDefault(); return; }
       if (state.active) { event.preventDefault(); stopPlayback(); } else event.preventDefault();
