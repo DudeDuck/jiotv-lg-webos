@@ -307,12 +307,24 @@ async function checkQuality(browser, port) {
   await page.close();
 }
 
+async function checkVersion(browser, port) {
+  const { version } = JSON.parse(fs.readFileSync(path.join(root, 'appinfo.json'), 'utf8'));
+  const page = await openApp(browser, port, []);
+  await page.waitForFunction(() => document.getElementById('app-version').textContent !== '');
+  assert.strictEqual(await page.textContent('#app-version'), `v${version}`, 'shows the version from appinfo.json');
+  const box = await (await page.$('#app-version')).boundingBox();
+  assert.ok(box.height < 40, 'version fits on one line');
+  assert.ok(box.x < 170 && box.y + box.height > 1000, `version sits in the bottom-left corner (${Math.round(box.x)}, ${Math.round(box.y)})`);
+  await shot(page, 'version.png');
+  await page.close();
+}
+
 (async () => {
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   try {
-    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView, checkOrder, checkLanguageMemory, checkQuality]) { await check(browser, port); console.log(`pass  ${check.name}`); }
+    for (const check of [checkDpad, checkSaved, checkTopBar, checkListView, checkOrder, checkLanguageMemory, checkQuality, checkVersion]) { await check(browser, port); console.log(`pass  ${check.name}`); }
   } catch (error) {
     console.error(`FAIL  ${error.message}`); process.exitCode = 1;
   } finally { await browser.close(); server.close(); }

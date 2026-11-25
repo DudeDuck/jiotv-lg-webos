@@ -737,6 +737,20 @@
     return `${hours % 12 || 12}:${String(date.getMinutes()).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
   }
   function formatGuideTime(timestamp) { return formatClockTime(timestamp); }
+  // Version from appinfo.json, shown at the bottom of the rail.
+  function showAppVersion() {
+    const show = (info) => { if (info && info.version) $('app-version').textContent = `v${info.version}`; };
+    if (window.webOS && typeof webOS.fetchAppInfo === 'function') {
+      try { webOS.fetchAppInfo((info) => show(info)); return; } catch (_) {}
+    }
+    try {
+      const request = new XMLHttpRequest();
+      request.open('GET', 'appinfo.json');
+      request.overrideMimeType('application/json');
+      request.onload = () => { try { show(JSON.parse(request.responseText)); } catch (_) {} };
+      request.send();
+    } catch (_) {}
+  }
   function updateClock() {
     elements.clock.textContent = formatClockTime(Date.now());
     elements.clock.setAttribute('datetime', new Date().toISOString());
@@ -1129,6 +1143,7 @@
   elements.viewList.addEventListener('click', () => setView('list'));
   setInterval(refreshVisibleRowEpg, 30000);
   startClock();
+  showAppVersion();
   $('settings-form').addEventListener('submit', (event) => event.preventDefault());
   $('settings-close').addEventListener('click', () => elements.dialog.close());
   $('settings-done').addEventListener('click', () => elements.dialog.close());
